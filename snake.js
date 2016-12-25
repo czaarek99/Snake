@@ -29,6 +29,10 @@ function initializeGame(){
 
 	document.addEventListener("keydown", onKeyDown);
 
+	document.getElementById("scaleSlider").addEventListener("input", function (event) {
+		snakeCanvas.scale = this.value;
+	});
+
 	//Run at 20 ticks
 	setInterval(run, 50);
 	spawnNewSnake();
@@ -141,7 +145,7 @@ class SnakeCanvas {
 		this.canvas = document.getElementById("snakeCanvas");
 		this._canvasContext = this.canvas.getContext("2d");
 
-		this.scale = scale;
+		this._scale = scale;
 		this.updateCanvasSize();
 	}
 
@@ -158,20 +162,19 @@ class SnakeCanvas {
 	}
 
 	getScaledPixelHeight(){
-		return this.canvas.height / this.scale;
+		return this.canvas.height / this._scale;
 	}
 
 	getScaledPixelWidth(){
-		return this.canvas.width / this.scale;
+		return this.canvas.width / this._scale;
 	}
 
 	scaleNext(){
-		this.canvasContext.scale(this.scale, this.scale);
+		this.canvasContext.scale(this._scale, this._scale);
 	}
 
 	updateCanvasSize(){
-		//Remove 3 pixels to avoid overflow
-		this.canvas.setAttribute("width", document.body.clientWidth);
+		this.canvas.setAttribute("width", document.body.clientWidth * 0.75);
 		this.canvas.setAttribute("height", document.body.clientHeight);
 	}
 
@@ -194,6 +197,11 @@ class SnakeCanvas {
 	get canvasContext(){
 		return this._canvasContext;
 	}
+
+	set scale(scale){
+		this._scale = scale;
+	}
+
 
 }
 
@@ -278,6 +286,7 @@ class Snake {
 }
 
 class BoardItem {
+
 	constructor(x, y, width, height){
 		this.x = x;
 		this.y = y;
@@ -335,6 +344,7 @@ class ImageBoardItem extends BoardItem {
 }
 
 class SnakePart extends ColoredBoardItem {
+
 	constructor(x, y){
 		super(x, y, 1, 1, "green");
 	}
@@ -346,6 +356,7 @@ class SnakePart extends ColoredBoardItem {
 }
 
 class Food extends ImageBoardItem {
+
 	constructor(boardWidth, boardHeight, image){
 		super(getRandomInt(0, boardWidth), getRandomInt(0, boardHeight), 2, 2, image);
 	}
@@ -362,8 +373,11 @@ class Background extends ColoredBoardItem {
 	}
 
 	paint(canvas){
-		canvas.canvasContext.fillStyle = this.color;
-		canvas.canvasContext.fillRect(0, 0, canvas.getScaledPixelWidth(), canvas.getScaledPixelHeight());
+		var context = canvas.canvasContext;
+		context.fillStyle = this.color;
+		context.fillRect(0, 0, canvas.getScaledPixelWidth(), canvas.getScaledPixelHeight());
+		context.strokeStyle = "black";
+		context.strokeRect(0, 0, canvas.getScaledPixelWidth(), canvas.getScaledPixelHeight());
 	}
 }
 

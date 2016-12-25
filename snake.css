@@ -1,10 +1,38 @@
 body, html {
-	width: 99.9%;
-	height: 99.9%;
-	margin: 0;
+	width: 100%;
+	height: 100%;
 	overflow: hidden;
+	margin: 0;
+	padding: 0;
 }
 
-#snakeCanvas {
-	border: black;
+#pageContainer {
+	display: flex;
 }
+
+#menuContainer {
+	flex: 10px;
+}
+
+#settingsContainer {
+	text-align: center;
+}
+
+.menuHeader {
+	margin: 0;
+	text-align: center;
+}
+
+.upgrade {
+	height: 30px;
+}
+
+.upgradeText {
+	margin: 0;
+}
+
+.upgradePrice {
+	margin: 0;
+}
+
+
