@@ -12,6 +12,7 @@ body, html {
 
 #menuContainer {
 	flex: 10px;
+	min-width: 150px;
 }
 
 #settingsContainer {
@@ -23,6 +24,8 @@ body, html {
 	text-align: center;
 }
 
+/* Upgrades */
+
 .upgrade {
 	height: 30px;
 }
@@ -33,6 +36,32 @@ body, html {
 
 .upgradePrice {
 	margin: 0;
+}
+
+/* Sliders */
+
+.sliderContainer {
+	padding: 5px;
+	height: 30px;
+}
+
+.sliderTextContainer {
+	display: flex;
+}
+
+.sliderName {
+	margin: 0;
+	text-align: left;
+}
+
+.sliderValue {
+	margin: 0;
+	text-align: right;
+	flex: 1px;
+}
+
+.slider {
+	width: 100%;
 }
 
 

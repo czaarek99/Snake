@@ -22,16 +22,35 @@ function initializeGame(){
 	keycodeDirectionMap[39] = "right";
 	keycodeDirectionMap[40] = "down";
 
-	snakeCanvas = new SnakeCanvas(3);
+	snakeCanvas = new SnakeCanvas(1);
+
 	background = new Background();
+	background.update();
+
 	foodImage = new Image();
 	foodImage.src = "assets/apple2.png";
 
 	document.addEventListener("keydown", onKeyDown);
 
-	document.getElementById("scaleSlider").addEventListener("input", function (event) {
+	var scaleSlider = document.getElementById("scaleSlider");
+	snakeCanvas.scale = scaleSlider.value;
+	scaleSlider.addEventListener("input", function () {
 		snakeCanvas.scale = this.value;
 	});
+
+	//All sliders automatically update their values
+	var sliderContainers = document.getElementsByClassName("sliderContainer");
+	for(var i = 0; i < sliderContainers.length; i++){
+		var sliderContainer = sliderContainers[i];
+		var sliderValue = sliderContainer.getElementsByClassName("sliderValue")[0];
+		var slider = sliderContainer.getElementsByClassName("slider")[0];
+
+		var update = function() {sliderValue.innerHTML = slider.value};
+
+		update();
+		slider.addEventListener("input", update);
+
+	}
 
 	//Run at 20 ticks
 	setInterval(run, 50);
@@ -44,13 +63,11 @@ function run(){
 }
 
 function computeLogic(){
-	currentSnake.moveForward();
-
-	background.width = snakeCanvas.getScaledCellWidth();
-	background.height = snakeCanvas.getScaledCellHeight();
+	background.update();
+	currentSnake.update();
 
 	//Respawn the food it it is outside the snakeCanvas
-	if(!currentFood.isInside(background, snakeCanvas)){
+	if(!currentFood.isInside(background)){
 		spawnNewFood();
 	}
 
@@ -79,24 +96,27 @@ function spawnNewSnake(){
 }
 
 function spawnNewFood(){
-
-	var collides = true;
+	var respawn = true;
 	var newFood;
 
 	var width = snakeCanvas.getScaledCellWidth();
 	var height = snakeCanvas.getScaledCellHeight();
 
-	while(collides){
-		newFood = new Food(width, height, foodImage);
-		currentSnake.snakeParts.some(function(snakePart) {
-			if(newFood.collidesWith(snakePart)){
-				collides = true;
-				return true;
-			} else {
-				collides = false;
-			}
+	while(respawn){
+		newFood = new FoodEntity(width, height, foodImage);
+		if(newFood.isInside(background, snakeCanvas)){
+			currentSnake.snakeParts.some(function(snakePart) {
+				if(newFood.collidesWith(snakePart)){
+					respawn = true;
+					return true;
+				} else {
+					respawn = false;
+				}
 
-		});
+			});
+		} else {
+			respawn = true;
+		}
 	}
 
 	currentFood = newFood;
@@ -108,18 +128,15 @@ function paint(){
 
 	//Paint background and score
 	var canvasCont = snakeCanvas.canvasContext;
-	snakeCanvas.paintItem(background);
+	snakeCanvas.paintEntity(background);
 
+	//TODO: Make object oriented
 	canvasCont.fillStyle = "blue";
 	canvasCont.font = "20px Arial";
 	canvasCont.fillText("Score: " + (currentSnake.getLength() - snakeStartLength), 0, snakeCanvas.getScaledPixelHeight());
 
-	//TODO: If performance is a concern iterate over snake parts only once
-	currentSnake.forEachPart(function(item) {
-		snakeCanvas.paintItem(item);
-	});
-
-	snakeCanvas.paintItem(currentFood);
+	snakeCanvas.paintEntity(currentSnake);
+	snakeCanvas.paintEntity(currentFood);
 }
 
 function onKeyDown(event){
@@ -149,8 +166,8 @@ class SnakeCanvas {
 		this.updateCanvasSize();
 	}
 
-	paintItem(item){
-		item.paint(this);
+	paintEntity(entity){
+		entity.paint(this);
 	}
 
 	getScaledCellWidth(){
@@ -202,18 +219,52 @@ class SnakeCanvas {
 		this._scale = scale;
 	}
 
-
 }
 
-class Snake {
-	
+class Entity {
+
+	constructor(x, y, width, height){
+		this.x = x;
+		this.y = y;
+		this.width = width;
+		this.height = height;
+	}
+
+	collidesWith(otherEntity){
+		//https://silentmatt.com/rectangle-intersection/
+		var ax2 = this.x + this.width;
+		var ay2 = this.y + this.height;
+
+		var bx2 = otherEntity.x + otherEntity.width;
+		var by2 = otherEntity.y + otherEntity.height;
+
+		return this.x < bx2 && ax2 > otherEntity.x && this.y < by2 && ay2 > otherEntity.y;
+	}
+
+	isInside(otherEntity){
+		var otherRightX = otherEntity.width + otherEntity.x;
+		var otherBottomY = otherEntity.height + otherEntity.y;
+
+		return this.x <= otherRightX && this.y <= otherBottomY
+			&& this.x + this.width <= otherRightX && this.y + this.height <= otherBottomY
+			&& this.x >= otherEntity.x && this.y >= otherEntity.y;
+	}
+
+	paint(canvas){}
+
+	update(){}
+}
+
+class Snake extends Entity {
+
 	constructor(length){
+		super(null, null, null, null);
 		this._snakeDirection = "right";
 		this._snakeParts = [];
 
 		//Initialize start snake
 		for(var i = length; i > 0; i--){
-			this._snakeParts.push(new SnakePart(i, 2))
+			this._snakeParts.push(new SnakePartEntity(i, 2))
 		}
 
 	}
@@ -253,7 +304,7 @@ class Snake {
 	append(parts = 1){
 		var butt = this.getButt();
 		for(var i = 0; i < parts; i++){
-			this._snakeParts.push(new SnakePart(butt.x, butt.y));
+			this._snakeParts.push(new SnakePartEntity(butt.x, butt.y));
 		}
 	}
 
@@ -283,41 +334,21 @@ class Snake {
 		//Move the butt in front of the snake, making it the new head
 		this._snakeParts.unshift(snakeButt);
 	}
+
+	paint(canvas){
+		this._snakeParts.forEach(function(part) {
+			canvas.paintEntity(part);
+		});
+	}
+
+	update(){
+		//TODO: Put all snake logic in here for full object orientation
+		this.moveForward();
+
+	}
 }
 
-class BoardItem {
-
-	constructor(x, y, width, height){
-		this.x = x;
-		this.y = y;
-		this.width = width;
-		this.height = height;
-	}
-
-	collidesWith(otherItem){
-		//https://silentmatt.com/rectangle-intersection/
-		var ax2 = this.x + this.width;
-		var ay2 = this.y + this.height;
-
-		var bx2 = otherItem.x + otherItem.width;
-		var by2 = otherItem.y + otherItem.height;
-
-		return this.x < bx2 && ax2 > otherItem.x && this.y < by2 && ay2 > otherItem.y;
-	}
-
-	isInside(otherItem){
-		var otherRightX = otherItem.width + otherItem.x;
-		var otherBottomY = otherItem.height + otherItem.y;
-
-		return this.x <= otherRightX && this.y <= otherBottomY
-			&& this.x + this.width <= otherRightX && this.y + this.height <= otherBottomY
-			&& this.x >= otherItem.x && this.y >= otherItem.y;
-	}
-
-	paint(canvas){}
-}
-
-class ColoredBoardItem extends BoardItem {
+class ColoredEntity extends Entity {
 
 	constructor(x, y, width, height, color){
 		super(x, y, width, height);
@@ -334,7 +365,7 @@ class ColoredBoardItem extends BoardItem {
 	}
 }
 
-class ImageBoardItem extends BoardItem {
+class ImageEntity extends Entity {
 
 	constructor(x, y, width, height, image){
 		super(x, y, width, height);
@@ -343,7 +374,7 @@ class ImageBoardItem extends BoardItem {
 	}
 }
 
-class SnakePart extends ColoredBoardItem {
+class SnakePartEntity extends ColoredEntity {
 
 	constructor(x, y){
 		super(x, y, 1, 1, "green");
@@ -355,7 +386,7 @@ class SnakePart extends ColoredBoardItem {
 	}
 }
 
-class Food extends ImageBoardItem {
+class FoodEntity extends ImageEntity {
 
 	constructor(boardWidth, boardHeight, image){
 		super(getRandomInt(0, boardWidth), getRandomInt(0, boardHeight), 2, 2, image);
@@ -366,7 +397,7 @@ class Food extends ImageBoardItem {
 	}
 }
 
-class Background extends ColoredBoardItem {
+class Background extends ColoredEntity {
 
 	constructor() {
 		super(0, 0, null, null, "white");
@@ -378,6 +409,11 @@ class Background extends ColoredBoardItem {
 		context.fillRect(0, 0, canvas.getScaledPixelWidth(), canvas.getScaledPixelHeight());
 		context.strokeStyle = "black";
 		context.strokeRect(0, 0, canvas.getScaledPixelWidth(), canvas.getScaledPixelHeight());
+	}
+
+	update(){
+		this.width = snakeCanvas.getScaledCellWidth();
+		this.height = snakeCanvas.getScaledCellHeight();
 	}
 }
 
