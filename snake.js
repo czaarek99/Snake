@@ -1,38 +1,58 @@
-document.addEventListener('DOMContentLoaded', function() {
-	initializeGame();
-}, false);
+document.addEventListener('DOMContentLoaded', initializeGame);
 
-var snakeStartLength = 5;
-var opposingDirectionsMap = {};
-var keycodeDirectionMap = {};
-var foodImage;
-var currentFood;
-var currentSnake;
-var snakeCanvas;
-var background;
+var snakeGame;
+
+class SnakeGame {
+
+	constructor(){
+		this.keycodeDirectionMap = {};
+
+		this.foodImage = new Image();
+		this.foodImage.src = "assets/apple2.png";
+
+		this.snakeCanvas = new SnakeCanvas(1);
+		this.background = new Background();
+		this.currentSnake = new Snake();
+		this.currentFood = new FoodEntity(this);
+
+		this.entities = [];
+		this.entities.push(this.currentSnake);
+		this.entities.push(this.currentFood);
+		this.entities.push(this.background);
+
+		this.opposingDirectionsMap = {};
+		this.opposingDirectionsMap["left"] = "right";
+		this.opposingDirectionsMap["up"] = "down";
+		this.opposingDirectionsMap["right"] = "left";
+		this.opposingDirectionsMap["down"] = "up";
+
+		this.keycodeDirectionMap = {};
+		this.keycodeDirectionMap[37] = "left";
+		this.keycodeDirectionMap[38] = "up";
+		this.keycodeDirectionMap[39] = "right";
+		this.keycodeDirectionMap[40] = "down";
+	}
+
+}
+
+//TODO: Cleanup
+function onKeyDown(event){
+	if(snakeGame.keycodeDirectionMap[event.keyCode] !== undefined){
+		var newDirection = snakeGame.keycodeDirectionMap[event.keyCode];
+
+		if(snakeGame.currentSnake.snakeDirection != snakeGame.opposingDirectionsMap[newDirection]){
+			snakeGame.currentSnake.snakeDirection = newDirection;
+		}
+	}
+}
 
 function initializeGame(){
-	opposingDirectionsMap["left"] = "right";
-	opposingDirectionsMap["up"] = "down";
-	opposingDirectionsMap["right"] = "left";
-	opposingDirectionsMap["down"] = "up";
-
-	keycodeDirectionMap[37] = "left";
-	keycodeDirectionMap[38] = "up";
-	keycodeDirectionMap[39] = "right";
-	keycodeDirectionMap[40] = "down";
-
-	snakeCanvas = new SnakeCanvas(1);
-
-	background = new Background();
-	background.update();
-
-	foodImage = new Image();
-	foodImage.src = "assets/apple2.png";
+	snakeGame = new SnakeGame();
 
 	document.addEventListener("keydown", onKeyDown);
 
 	var scaleSlider = document.getElementById("scaleSlider");
+	var snakeCanvas = snakeGame.snakeCanvas;
 	snakeCanvas.scale = scaleSlider.value;
 	scaleSlider.addEventListener("input", function () {
 		snakeCanvas.scale = this.value;
@@ -54,99 +74,33 @@ function initializeGame(){
 
 	//Run at 20 ticks
 	setInterval(run, 50);
-	spawnNewSnake();
 }
 
 function run(){
-	computeLogic();
+	//TODO: Object orientation
+	snakeGame.background.update(snakeGame);
+	snakeGame.currentSnake.update(snakeGame);
+	snakeGame.currentFood.update(snakeGame);
+
 	paint();
 }
 
-function computeLogic(){
-	background.update();
-	currentSnake.update();
-
-	//Respawn the food it it is outside the snakeCanvas
-	if(!currentFood.isInside(background)){
-		spawnNewFood();
-	}
-
-	if(currentSnake.headCollidesWith(currentFood)){
-		currentSnake.append(4);
-		spawnNewFood();
-	}
-
-	var snakeHead = currentSnake.getHead();
-	if(!snakeHead.isInside(background)){
-		spawnNewSnake();
-	} else {
-		currentSnake.forEachPart(function(snakePart, index) {
-			//Skip the first element since that is the head
-			if(index > 0 && currentSnake.headCollidesWith(snakePart)){
-				spawnNewSnake();
-			}
-		});
-	}
-
-}
-
-function spawnNewSnake(){
-	currentSnake = new Snake(snakeStartLength);
-	spawnNewFood();
-}
-
-function spawnNewFood(){
-	var respawn = true;
-	var newFood;
-
-	var width = snakeCanvas.getScaledCellWidth();
-	var height = snakeCanvas.getScaledCellHeight();
-
-	while(respawn){
-		newFood = new FoodEntity(width, height, foodImage);
-		if(newFood.isInside(background, snakeCanvas)){
-			currentSnake.snakeParts.some(function(snakePart) {
-				if(newFood.collidesWith(snakePart)){
-					respawn = true;
-					return true;
-				} else {
-					respawn = false;
-				}
-
-			});
-		} else {
-			respawn = true;
-		}
-	}
-
-	currentFood = newFood;
-}
-
 function paint(){
+	var snakeCanvas = snakeGame.snakeCanvas;
 	snakeCanvas.updateCanvasSize();
 	snakeCanvas.scaleNext();
 
 	//Paint background and score
 	var canvasCont = snakeCanvas.canvasContext;
-	snakeCanvas.paintEntity(background);
+	snakeCanvas.paintEntity(snakeGame.background);
 
 	//TODO: Make object oriented
 	canvasCont.fillStyle = "blue";
 	canvasCont.font = "20px Arial";
-	canvasCont.fillText("Score: " + (currentSnake.getLength() - snakeStartLength), 0, snakeCanvas.getScaledPixelHeight());
+	canvasCont.fillText("Score: " + (snakeGame.currentSnake.getLength() - snakeGame.currentSnake.SNAKE_START_LENGT), 0, snakeCanvas.getScaledPixelHeight());
 
-	snakeCanvas.paintEntity(currentSnake);
-	snakeCanvas.paintEntity(currentFood);
-}
-
-function onKeyDown(event){
-	if(keycodeDirectionMap[event.keyCode] !== undefined){
-		var newDirection = keycodeDirectionMap[event.keyCode];
-
-		if(currentSnake.snakeDirection != opposingDirectionsMap[newDirection]){
-			currentSnake._snakeDirection = newDirection;
-		}
-	}
+	snakeCanvas.paintEntity(snakeGame.currentSnake);
+	snakeCanvas.paintEntity(snakeGame.currentFood);
 }
 
 function getRandomInt(min, max) {
@@ -228,6 +182,7 @@ class Entity {
 		this.y = y;
 		this.width = width;
 		this.height = height;
+		this.dead = false;
 	}
 
 	collidesWith(otherEntity){
@@ -252,18 +207,20 @@ class Entity {
 
 	paint(canvas){}
 
-	update(){}
+	update(game){}
 }
 
 class Snake extends Entity {
 
-	constructor(length){
+	constructor(){
 		super(null, null, null, null);
+		this.SNAKE_START_LENGT = 5;
+
 		this._snakeDirection = "right";
 		this._snakeParts = [];
 
 		//Initialize start snake
-		for(var i = length; i > 0; i--){
+		for(var i = this.SNAKE_START_LENGT; i > 0; i--){
 			this._snakeParts.push(new SnakePartEntity(i, 2))
 		}
 
@@ -341,9 +298,24 @@ class Snake extends Entity {
 		});
 	}
 
-	update(){
-		//TODO: Put all snake logic in here for full object orientation
+	update(game){
 		this.moveForward();
+
+		if(this.headCollidesWith(game.currentFood)){
+			this.append(4);
+			game.currentFood = new FoodEntity(game);
+		}
+
+		if(!this.getHead().isInside(game.background)){
+			game.currentSnake = new Snake();
+		} else {
+			this._snakeParts.forEach(function(snakePart, index) {
+				//Skip the first element since that is the head
+				if(index > 0 && game.currentSnake.headCollidesWith(snakePart)){
+					game.currentSnake = new Snake();
+				}
+			});
+		}
 
 	}
 }
@@ -388,8 +360,38 @@ class SnakePartEntity extends ColoredEntity {
 
 class FoodEntity extends ImageEntity {
 
-	constructor(boardWidth, boardHeight, image){
-		super(getRandomInt(0, boardWidth), getRandomInt(0, boardHeight), 2, 2, image);
+	constructor(game){
+		super(null, null, 2, 2, game.foodImage);
+		this.update(game, true);
+	}
+
+	update(game, bypass){
+		if(!this.isInside(game.background) || bypass){
+			var snakeCanvas = game.snakeCanvas;
+			var snake = game.currentSnake;
+
+			var width = snakeCanvas.getScaledCellWidth();
+			var height = snakeCanvas.getScaledCellHeight();
+
+			var respawn = true;
+			while(respawn){
+				this.x = getRandomInt(0, width);
+				this.y = getRandomInt(0, height);
+
+				respawn = false;
+				if(this.isInside(game.background)){
+					snake.snakeParts.some(function(snakePart, index) {
+						if(index > 0 && snake.headCollidesWith(snakePart)){
+							respawn = true;
+							return true;
+						} else {
+							respawn = false;
+						}
+
+					});
+				}
+			}
+		}
 	}
 
 	paint(canvas){
@@ -411,9 +413,9 @@ class Background extends ColoredEntity {
 		context.strokeRect(0, 0, canvas.getScaledPixelWidth(), canvas.getScaledPixelHeight());
 	}
 
-	update(){
-		this.width = snakeCanvas.getScaledCellWidth();
-		this.height = snakeCanvas.getScaledCellHeight();
+	update(game){
+		this.width = game.snakeCanvas.getScaledCellWidth();
+		this.height = game.snakeCanvas.getScaledCellHeight();
 	}
 }
 
