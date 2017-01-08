@@ -81,11 +81,11 @@ class SnakeGame {
 		this.keycodeDirectionMap[39] = "right";
 		this.keycodeDirectionMap[40] = "down";
 
-		this.imageRotationMap = {};
-		this.imageRotationMap["left"] = 0;
-		this.imageRotationMap["up"] = 90;
-		this.imageRotationMap["right"] = 180;
-		this.imageRotationMap["down"] = 270;
+		this.headImgRotationsMap = {};
+		this.headImgRotationsMap["left"] = 0;
+		this.headImgRotationsMap["up"] = 90;
+		this.headImgRotationsMap["right"] = 180;
+		this.headImgRotationsMap["down"] = 270;
 	}
 
 	static getGame() {
@@ -351,37 +351,101 @@ class Snake extends Entity {
 	}
 
 	paint(canvas) {
-		this.snakeParts.forEach(function (part) {
+		var game = SnakeGame.getGame();
+		var head = this.getHead();
+		var butt = this.getButt();
+		var parts = this.snakeParts;
+		var beforeButtPart = parts[parts.length - 2];
+
+		//Handle rotations for head and butt
+		head.image = game.snakeHeadImg;
+		head.rotation = game.headImgRotationsMap[this.snakeDirection];
+
+		var newButtRotation = 0;
+		butt.image = game.snakeTailImg;
+
+		if(beforeButtPart.x < butt.x){
+			newButtRotation = 0;
+		} else if(beforeButtPart.y < butt.y){
+			newButtRotation = 90;
+		} else if(beforeButtPart.x > butt.x){
+			newButtRotation = 180;
+		} else if(beforeButtPart.y > butt.y){
+			newButtRotation = 270
+		}
+
+		butt.rotation = newButtRotation;
+
+		//Handle rotations for the rest of the snake
+		for (var i = 0; i < parts.length; i++) {
+			var part = parts[i];
+			var partBefore = parts[i - 1];
+			var partAfter = parts[i + 1];
+
+			if(part != head && part != butt){
+				if(partBefore.y == part.y && partAfter.y == part.y && partBefore.y == partAfter.y){
+					part.image = game.snakeStraightImg;
+					part.rotation = 90;
+				} else {
+					for(var i2 = 0; i2 < 2; i2++){
+						//Flip the parts as there are two cases for each curve
+						if(i2 > 0){
+							partAfter = parts[i - 1];
+							partBefore = parts[i + 1];
+						}
+
+						if(partBefore.y == part.y && part.x == partAfter.x){
+							if(partBefore.x < part.x && partAfter.y > part.y){
+								part.image = game.snakeCurveImg;
+								part.rotation = 270;
+								break;
+							} else if(partBefore.x > part.x && partAfter.y < part.y){
+								part.image = game.snakeCurveImg;
+								part.rotation = 90;
+								break;
+							} else if(partBefore.x > part.x && partAfter.y > part.y){
+								part.image = game.snakeCurveImg;
+								part.rotation = 180;
+								break;
+							} else if(partBefore.x < part.x && partAfter.y < part.y){
+								part.image = game.snakeCurveImg;
+								part.rotation = 0;
+								break;
+							} else {
+								part.image = game.snakeStraightImg;
+								break;
+							}
+						} else {
+							part.rotation = 0;
+							part.image = game.snakeStraightImg;
+						}
+					}
+				}
+			}
+
 			canvas.paintEntity(part);
-		});
+		}
 	}
 
 	update() {
 		this.moveForward();
 
-		var head = this.getHead();
 		var game = SnakeGame.getGame();
+		var head = this.getHead();
 		var snake = this;
 
 		if (!head.isInside(game.background)) {
 			this.kill();
 		}
 
-		head.image = game.snakeHeadImg;
-		head.rotation = game.imageRotationMap[this.snakeDirection];
-
 		this.snakeParts.forEach(function (part) {
-			if(part != head){
-				part.rotation = 0;
-				part.image = game.snakeStraightImg;
-
-				//We avoid checking self collisions for most items
-				//The snake needs to do that though
-				if(snake.headCollidesWith(part)){
-					snake.onCollide(snake);
-				}
+			//We avoid checking self collisions for most items
+			//The snake needs to do that though
+			if(part != head && snake.headCollidesWith(part)){
+				snake.onCollide(snake);
 			}
 		});
+
 
 	}
 
@@ -401,14 +465,13 @@ class Snake extends Entity {
 	
 	onCollide(otherEntity) {
 		if (otherEntity instanceof FoodEntity) {
+			//TODO: Fix these parts being draw wrong until expanded
 			this.append(4);
 			otherEntity.kill();
 			SnakeGame.getGame().addEntity(new FoodEntity());
 		} else if (otherEntity instanceof Snake) {
 			this.kill();
 		}
-
-		console.log(otherEntity)
 	}
 }
 
