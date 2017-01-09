@@ -32,7 +32,7 @@ function initializeGame() {
 
 	//Run at 20 ticks
 	setInterval(function () {
-		SnakeGame.getGame().run();
+		game.run();
 	}, 50);
 }
 
@@ -44,6 +44,7 @@ class SnakeGame {
 
 	initialize() {
 		this.ticks = 0;
+		this.score = 0;
 
 		this.appleImg = new Image();
 		this.snakeHeadImg = new Image();
@@ -61,12 +62,10 @@ class SnakeGame {
 
 		this.background = new BackgroundEntity();
 		this.currentSnake = new Snake();
-		this.scoreEntity = new TextEntity(0, 0, "blue", "Score: 0", "20px Arial");
 
 		this.entities = new Set();
 		this.addEntity(this.background);
 		this.addEntity(this.currentSnake);
-		this.addEntity(this.scoreEntity);
 		this.addEntity(new FoodEntity(this));
 
 		this.opposingDirectionsMap = {};
@@ -149,16 +148,17 @@ class SnakeGame {
 				})
 			});
 
+			document.getElementById("scoreText").innerHTML = "Score: " + this.score;
+
 			//Painting
 			snakeCanvas.scaleNext();
-
 			entities.forEach(function (entity) {
 				snakeCanvas.paintEntity(entity);
 			});
 
-			var snake = this.currentSnake;
-			this.scoreEntity.text = "Score: " + (snake.getLength() - snake.SNAKE_START_LENGT);
-			this.scoreEntity.y = this.snakeCanvas.getScaledCellHeight();
+
+
+
 		} else {
 			var canvasCont = snakeCanvas.canvasContext;
 
@@ -458,17 +458,22 @@ class Snake extends Entity {
 				entity.kill();
 			}
 		});
-
+		
+		game.score = 0;
+		
 		game.addEntity(new Snake());
 		game.addEntity(new FoodEntity())
 	}
 	
 	onCollide(otherEntity) {
 		if (otherEntity instanceof FoodEntity) {
+			var game = SnakeGame.getGame();
 			//TODO: Fix these parts being draw wrong until expanded
 			this.append(4);
 			otherEntity.kill();
-			SnakeGame.getGame().addEntity(new FoodEntity());
+			game.addEntity(new FoodEntity());
+
+			game.score += 1;
 		} else if (otherEntity instanceof Snake) {
 			this.kill();
 		}

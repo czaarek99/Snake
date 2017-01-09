@@ -19,6 +19,10 @@ body, html {
 	text-align: center;
 }
 
+.noMargin {
+	margin: 0;
+}
+
 .menuHeader {
 	margin: 0;
 	text-align: center;
