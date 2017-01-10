@@ -41,9 +41,8 @@ function getRandomInt(min, max) {
 }
 
 class SnakeGame {
-
-	initialize() {
-		this.ticks = 0;
+    initialize() {
+        this.ticks = 0;
 		this.score = 0;
 
 		this.appleImg = new Image();
@@ -218,6 +217,29 @@ class SnakeCanvas {
 
 	getRealHeight() {
 		return this.canvas.height;
+	}
+
+	setRandomPositionInside(entity, inside){
+        var canvasWidth = this.getScaledCellWidth();
+        var canvasHeight = this.getScaledCellHeight();
+		var game = SnakeGame.getGame();
+		var entities = game.entities;
+		var respawn = true;
+        respawnLoop: while (respawn) {
+            entity.x = getRandomInt(this.width, canvasWidth - this.width);
+            entity.y = getRandomInt(this.height, canvasHeight - this.height);
+
+            if(entity.isInside(inside)){
+				game.entities.forEach(function(collidingEntity) {
+					if(entity.collidesWith(collidingEntity)){
+						respawn = true;
+					}
+				});
+
+			}
+
+
+        }
 	}
 
 }
