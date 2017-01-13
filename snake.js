@@ -18,7 +18,7 @@ function initializeGame() {
 		let sliderValue = sliderContainer.getElementsByClassName("sliderValue")[0];
 		let slider = sliderContainer.getElementsByClassName("slider")[0];
 
-		let update = function () {
+		let update = () => {
 			sliderValue.innerHTML = slider.value
 		};
 
@@ -31,7 +31,7 @@ function initializeGame() {
 	});
 
 	//Run at 20 ticks
-	setInterval(function () {
+	setInterval(() => {
 		game.run();
 	}, 50);
 }
@@ -41,10 +41,16 @@ function getRandomInt(min, max) {
 }
 
 class SnakeGame {
+
     initialize() {
         this.ticks = 0;
 		this.score = 0;
 		this.coins = 0;
+
+		this.upgrades = new Map();
+		this.upgrades.set("phase", new Upgrade("Phasing Snake", 100, true, null));
+
+		this.generateHTML();
 
 		this.appleImg = new Image();
 		this.snakeHeadImg = new Image();
@@ -86,6 +92,35 @@ class SnakeGame {
 		this.headImgRotationsMap["up"] = 90;
 		this.headImgRotationsMap["right"] = 180;
 		this.headImgRotationsMap["down"] = 270;
+	}
+
+	generateHTML(){
+		let upgradesCont = document.getElementById("upgradesContainer");
+		this.upgrades.forEach((value, key) => {
+			var upgradeID = key + "UpgradeButtonInternal";
+
+			upgradesCont.innerHTML +=
+				` 
+			<div class="upgrade">
+				<p class="upgradeText noMargin">${value.displayName}</p>
+				<p class="upgradePrice noMargin">${value.price} coins</p>
+				<div class="textCenter">
+					<button class="upgradeBuyButton" id="${upgradeID}">Buy</button>
+				</div>
+			</div>
+			`;
+
+			let purchaseButton = document.getElementById(upgradeID);
+			value.buyButtonElement = purchaseButton;
+
+			purchaseButton.addEventListener("click", () => {
+				value.buy();
+
+				if(value.oneTimeUpgrade){
+					purchaseButton.disabled = true;
+				}
+			})
+		});
 	}
 
 	static getGame() {
@@ -152,8 +187,17 @@ class SnakeGame {
         this.addEntity(new CoinEntity());
 
         this.score = 0;
-        this.coins = 0;
+        this.coins = 200;
+
+		this.upgrades.forEach((value) => {
+			value.purchased = false;
+			value.buyButtonElement.disabled = false;
+		});
     }
+
+	hasUpgrade(id){
+		return this.upgrades.get(id).purchased;
+	}
 
 	run() {
 		this.ticks++;
@@ -259,6 +303,7 @@ class Updateable {
 class Entity extends Updateable {
 
 	constructor(x, y, width, height) {
+		super();
 		this.x = x;
 		this.y = y;
 		this.width = width;
@@ -465,13 +510,15 @@ class Snake extends Entity {
 		let head = this.getHead();
 		let snake = this;
 
-		this.snakeParts.forEach(part => {
-			//We avoid checking self collisions for most items
-			//The snake needs to do that though
-			if(part != head && snake.headCollidesWith(part)){
-				snake.onCollide(snake);
-			}
-		});
+		if(!game.hasUpgrade("phase")){
+			this.snakeParts.forEach(part => {
+				//We avoid checking self collisions for most items
+				//The snake needs to do that though
+				if(part != head && snake.headCollidesWith(part)){
+					snake.onCollide(snake);
+				}
+			});
+		}
 
         if (!head.isInside(game.background)) {
             game.startNewGame();
@@ -640,17 +687,29 @@ class Setting {
 
 class Upgrade extends Updateable {
 
-	constructor(upgradeID, cost, canBuyMultipleTimes){
-		this.upgradeID = upgradeID;
-		this.cost = cost;
-		this.canBuyMultipleTimes = canBuyMultipleTimes;
+	constructor(displayName, price, oneTimeUpgrade, onPurchase){
+		super();
+		this.displayName = displayName;
+		this.price = price;
+		this.oneTimeUpgrade = oneTimeUpgrade;
+		this.purchased = false;
+		this.onPurchase = onPurchase;
+		this.buyButtonElement = null;
 	}
 
-	onPurchase(){
+	buy(){
+		let game = SnakeGame.getGame();
+		if(game.coins >= this.price){
+			game.coins -= this.price;
+			this.purchased = true;
 
+			if(this.onPurchase != null){
+				this.onPurchase();
+			}
+		}
 	}
-
 }
+
 
 
 
