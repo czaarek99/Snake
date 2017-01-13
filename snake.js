@@ -26,7 +26,7 @@ function initializeGame() {
 		slider.addEventListener("input", update);
 	}
 
-	document.addEventListener("keydown", function (event) {
+	document.addEventListener("keydown", event => {
 		SnakeGame.getGame().onKeyDown(event.keyCode);
 	});
 
@@ -140,7 +140,7 @@ class SnakeGame {
     }
 
     startNewGame(){
-        this.entities.forEach(function (entity) {
+        this.entities.forEach(entity => {
             if (!entity.dead) {
                 entity.kill();
             }
@@ -165,7 +165,7 @@ class SnakeGame {
 			let entities = this.entities;
 
 			//Update living entities, remove dead ones
-			entities.forEach(function (entity) {
+			entities.forEach(entity => {
 				if (entity.dead) {
 					entities.delete(entity);
 				} else {
@@ -174,8 +174,8 @@ class SnakeGame {
 			});
 
 			//Check for collisions, avoid checking self collisions
-			entities.forEach(function (entity1) {
-				entities.forEach(function (entity2) {
+			entities.forEach(entity1 => {
+				entities.forEach(entity2 => {
 					if (entity1 != entity2 && entity1.collidesWith(entity2)) {
 						entity1.onCollide(entity2);
 					}
@@ -187,13 +187,9 @@ class SnakeGame {
 
 			//Painting
 			snakeCanvas.scaleNext();
-			entities.forEach(function (entity) {
+			entities.forEach(entity => {
 				snakeCanvas.paintEntity(entity);
 			});
-
-
-
-
 		} else {
 			let canvasCont = snakeCanvas.canvasContext;
 
@@ -255,7 +251,12 @@ class SnakeCanvas {
 		return this.canvas.height;
 	}
 }
-class Entity {
+class Updateable {
+
+	update(){}
+}
+
+class Entity extends Updateable {
 
 	constructor(x, y, width, height) {
 		this.x = x;
@@ -290,9 +291,6 @@ class Entity {
 	}
 
 	paint(canvas) {
-	}
-
-	update() {
 	}
 
 	onCollide(otherEntity) {
@@ -467,7 +465,7 @@ class Snake extends Entity {
 		let head = this.getHead();
 		let snake = this;
 
-		this.snakeParts.forEach(function (part) {
+		this.snakeParts.forEach(part => {
 			//We avoid checking self collisions for most items
 			//The snake needs to do that though
 			if(part != head && snake.headCollidesWith(part)){
@@ -636,6 +634,23 @@ class BackgroundEntity extends ColoredEntity {
 	}
 }
 
+class Setting {
+
+}
+
+class Upgrade extends Updateable {
+
+	constructor(upgradeID, cost, canBuyMultipleTimes){
+		this.upgradeID = upgradeID;
+		this.cost = cost;
+		this.canBuyMultipleTimes = canBuyMultipleTimes;
+	}
+
+	onPurchase(){
+
+	}
+
+}
 
 
 

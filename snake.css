@@ -15,7 +15,18 @@ body, html {
 	min-width: 150px;
 }
 
-#settingsContainer {
+.menuSection {
+
+}
+
+.menuHeader {
+	margin-bottom: 0;
+	text-align: center;
+}
+
+/* Utilities */
+
+.textCenter {
 	text-align: center;
 }
 
@@ -23,23 +34,22 @@ body, html {
 	margin: 0;
 }
 
-.menuHeader {
-	margin: 0;
-	text-align: center;
-}
-
 /* Upgrades */
 
 .upgrade {
-	height: 30px;
+
 }
 
 .upgradeText {
-	margin: 0;
+
 }
 
 .upgradePrice {
-	margin: 0;
+
+}
+
+.upgradeBuyButton {
+	width: 50%;
 }
 
 /* Sliders */

@@ -17,23 +17,28 @@
 
 			<aside id="menuContainer">
 
-				<h1 class="menuHeader">Stats</h1>
-				<section id="statsContainer">
+				<section id="statsContainer" class="menuSection">
+					<h1 class="menuHeader">Stats</h1>
+
 					<p id="scoreText" class="noMargin">Score: 0</p>
 					<p id="coinsText" class="noMargin">Coins: 0</p>
 				</section>
 
-				<h1 class="menuHeader">Upgrades</h1>
-				<section id="upgradesContainer">
+				<section id="upgradesContainer" class="menuSection">
+					<h1 class="menuHeader">Upgrades</h1>
+
 					<div class="upgrade">
-						<p class="upgradeText">Backwards snake</p>
-						<p class="upgradePrice">100 coins</p>
+						<p class="upgradeText noMargin">Backwards snake</p>
+						<p class="upgradePrice noMargin">100 coins</p>
+						<div class="textCenter">
+							<button class="upgradeBuyButton" data-upgrade-id="backwards">Buy</button>
+						</div>
 					</div>
 				</section>
 
+				<section id="settingsContainer" class="menuSection textCenter">
+					<h1 class="menuHeader">Settings</h1>
 
-				<h1 class="menuHeader">Settings</h1>
-				<section id="settingsContainer">
 					<div class="sliderContainer">
 						<div class="sliderTextContainer">
 							<p id="scaleText" class="sliderName">Scale</p>
