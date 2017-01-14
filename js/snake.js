@@ -48,7 +48,24 @@ class SnakeGame {
 		this.coins = 0;
 
 		this.upgrades = new Map();
-		this.upgrades.set("phase", new Upgrade("Phasing Snake", 100, true, null));
+		this.purchases = new Map();
+
+		this.upgrades.set("phase", new Upgrade("Phasing Snake", 100, null, null));
+		this.upgrades.set("slowgrow", new Upgrade("Slow Growing Snake", 50, null, null));
+
+		this.purchases.set("cut", new Purchase("Cut Snake in Half", 10, () => {
+			let length = this.currentSnake.snakeParts.length;
+
+			if(length > 2){
+				for(let i = Math.floor(length / 2); i < length; i++){
+					this.currentSnake.popButt();
+				}
+			}
+		}, (purchase) => {
+			let length = this.currentSnake.snakeParts.length;
+
+			purchase.buyButtonElement.disabled = length <= 10;
+		}));
 
 		this.generateHTML();
 
@@ -97,29 +114,46 @@ class SnakeGame {
 	generateHTML(){
 		let upgradesCont = document.getElementById("upgradesContainer");
 		this.upgrades.forEach((value, key) => {
-			var upgradeID = key + "UpgradeButtonInternal";
+			var upgradeID = "InternalButtonWithId-" + key;
 
-			upgradesCont.innerHTML +=
-				` 
+			upgradesCont.insertAdjacentHTML("beforeend", ` 
 			<div class="upgrade">
 				<p class="upgradeText noMargin">${value.displayName}</p>
 				<p class="upgradePrice noMargin">${value.price} coins</p>
 				<div class="textCenter">
-					<button class="upgradeBuyButton" id="${upgradeID}">Buy</button>
+					<button class="upgradeBuyButton halfWidth" id="${upgradeID}">Buy</button>
 				</div>
 			</div>
-			`;
+			`);
 
 			let purchaseButton = document.getElementById(upgradeID);
 			value.buyButtonElement = purchaseButton;
 
 			purchaseButton.addEventListener("click", () => {
 				value.buy();
+			});
+		});
 
-				if(value.oneTimeUpgrade){
-					purchaseButton.disabled = true;
-				}
-			})
+		let purchasesCont = document.getElementById("purchasesContainer");
+		this.purchases.forEach((value, key) => {
+			var purchaseID = "InternalButtonWithId-" + key;
+
+			purchasesCont.insertAdjacentHTML("beforeend", ` 
+			<div class="purchase">
+				<p class="purchaseText noMargin">${value.displayName}</p>
+				<p class="purchasePrice noMargin">${value.price} coins</p>
+				<div class="textCenter">
+					<button class="purchaseBuyButton halfWidth" id="${purchaseID}">Buy</button>
+				</div>
+			</div>
+			`);
+
+			let purchaseButton = document.getElementById(purchaseID);
+			value.buyButtonElement = purchaseButton;
+
+			purchaseButton.addEventListener("click", () => {
+				value.buy();
+			});
 		});
 	}
 
@@ -163,14 +197,13 @@ class SnakeGame {
             entity.x = getRandomInt(entity.width, inside.width - entity.width);
             entity.y = getRandomInt(entity.height, inside.height - entity.height);
 
-            for(let i = 0; i < this.entities.length; i++){
-                let collidingEntity = this.entities[i];
-
-                if (collidingEntity != entity && entity.collidesWith(collidingEntity)) {
-                    respawn = true;
-                    break;
-                }
-            }
+			this.entities.forEach(collidingEntity => {
+				if(collidingEntity.collidable){
+					if (!respawn && collidingEntity != entity && collidingEntity.collidesWith(entity)) {
+						respawn = true;
+					}
+				}
+			});
         }
     }
 
@@ -205,6 +238,13 @@ class SnakeGame {
 		let snakeCanvas = this.snakeCanvas;
 		snakeCanvas.updateCanvasSize();
 
+		let update = (value) => {
+			value.update();
+		};
+
+		this.upgrades.forEach(update);
+		this.purchases.forEach(update);
+
 		if (snakeCanvas.getScaledCellHeight() > 10 && snakeCanvas.getScaledPixelWidth() > 10) {
 			let entities = this.entities;
 
@@ -220,7 +260,7 @@ class SnakeGame {
 			//Check for collisions, avoid checking self collisions
 			entities.forEach(entity1 => {
 				entities.forEach(entity2 => {
-					if (entity1 != entity2 && entity1.collidesWith(entity2)) {
+					if (entity1 != entity2 && entity1.collidable && entity2.collidable && entity1.collidesWith(entity2)) {
 						entity1.onCollide(entity2);
 					}
 				})
@@ -295,6 +335,7 @@ class SnakeCanvas {
 		return this.canvas.height;
 	}
 }
+
 class Updateable {
 
 	update(){}
@@ -309,6 +350,7 @@ class Entity extends Updateable {
 		this.width = width;
 		this.height = height;
 		this.dead = false;
+		this.collidable = true;
 	}
 
 	collidesWith(otherEntity) {
@@ -347,6 +389,7 @@ class Snake extends Entity {
 	constructor() {
 		super(null, null, null, null);
 		this.SNAKE_START_LENGT = 5;
+		this.snakeGrowthOnFeed = 4;
 
 		this.snakeDirection = "right";
 		this.snakeParts = [];
@@ -376,6 +419,7 @@ class Snake extends Entity {
 
 	append(parts = 1) {
 		let butt = this.getButt();
+
 		for (let i = 0; i < parts; i++) {
 			this.snakeParts.push(new SnakePartEntity(butt.x, butt.y, SnakeGame.getGame().snakeStraightImg));
 		}
@@ -529,7 +573,13 @@ class Snake extends Entity {
         let game = SnakeGame.getGame();
 		if (otherEntity instanceof FoodEntity) {
 			//TODO: Fix these parts being draw wrong until expanded
-			this.append(4);
+
+			if(game.hasUpgrade("slowgrow")){
+				this.append(this.snakeGrowthOnFeed / 2);
+			} else {
+				this.append(this.snakeGrowthOnFeed);
+			}
+
 			otherEntity.kill();
 			game.addEntity(new FoodEntity());
 			game.score += 1;
@@ -661,6 +711,8 @@ class BackgroundEntity extends ColoredEntity {
 
 	constructor() {
 		super(0, 0, null, null, "white");
+		this.collidable = false;
+		this.update();
 	}
 
 	paint(canvas) {
@@ -680,20 +732,19 @@ class BackgroundEntity extends ColoredEntity {
 	kill() {
 	}
 }
-
+//TODO: Make settings generate from this object
 class Setting {
 
 }
 
-class Upgrade extends Updateable {
+class Purchase extends Updateable {
 
-	constructor(displayName, price, oneTimeUpgrade, onPurchase){
+	constructor(displayName, price, onPurchase, onUpdate){
 		super();
 		this.displayName = displayName;
 		this.price = price;
-		this.oneTimeUpgrade = oneTimeUpgrade;
-		this.purchased = false;
 		this.onPurchase = onPurchase;
+		this.onUpdate = onUpdate;
 		this.buyButtonElement = null;
 	}
 
@@ -704,9 +755,31 @@ class Upgrade extends Updateable {
 			this.purchased = true;
 
 			if(this.onPurchase != null){
-				this.onPurchase();
+				this.onPurchase(this);
 			}
 		}
+	}
+
+	update(){
+		if(this.onUpdate != null){
+			this.onUpdate(this);
+		}
+	}
+
+}
+
+class Upgrade extends Purchase {
+
+	constructor(displayName, price, onPurchase, onUpdate){
+		super(displayName, price, onPurchase, onUpdate);
+
+		this.purchased = false;
+	}
+
+	buy(){
+		super.buy();
+
+		this.buyButtonElement.disabled = true;
 	}
 }
 
