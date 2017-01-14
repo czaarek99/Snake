@@ -50,8 +50,9 @@ class SnakeGame {
 		this.upgrades = new Map();
 		this.purchases = new Map();
 
-		this.upgrades.set("phase", new Upgrade("Phasing Snake", 100, null, null));
-		this.upgrades.set("slowgrow", new Upgrade("Slow Growing Snake", 50, null, null));
+		this.upgrades.set("phase", new Upgrade("Phasing Snake", 50, null, null));
+		this.upgrades.set("slowsnake", new Upgrade("Slow Snake", 50, null, null));
+		this.upgrades.set("slowgrow", new Upgrade("Slow Growing Snake", 25, null, null));
 
 		this.purchases.set("cut", new Purchase("Cut Snake in Half", 10, () => {
 			let length = this.currentSnake.snakeParts.length;
@@ -194,8 +195,8 @@ class SnakeGame {
         while (respawn) {
             respawn = false;
 
-            entity.x = getRandomInt(entity.width, inside.width - entity.width);
-            entity.y = getRandomInt(entity.height, inside.height - entity.height);
+            entity.x = getRandomInt(entity.width + 1, inside.width - entity.width - 1);
+            entity.y = getRandomInt(entity.height + 1, inside.height - entity.height - 1);
 
 			this.entities.forEach(collidingEntity => {
 				if(collidingEntity.collidable){
@@ -548,18 +549,20 @@ class Snake extends Entity {
 	}
 
 	update() {
-		this.moveForward();
-
 		let game = SnakeGame.getGame();
-		let head = this.getHead();
-		let snake = this;
+		let hasSlowUpgrade = game.hasUpgrade("slowsnake");
 
+		if(!hasSlowUpgrade || game.ticks % 2 == 0 && hasSlowUpgrade){
+			this.moveForward();
+		}
+
+		let head = this.getHead();
 		if(!game.hasUpgrade("phase")){
 			this.snakeParts.forEach(part => {
 				//We avoid checking self collisions for most items
 				//The snake needs to do that though
-				if(part != head && snake.headCollidesWith(part)){
-					snake.onCollide(snake);
+				if(part != head && this.headCollidesWith(part)){
+					this.onCollide(this);
 				}
 			});
 		}
@@ -670,7 +673,7 @@ class FoodEntity extends RandomLocImageEntity {
 class CoinEntity extends RandomLocImageEntity {
 
     constructor(){
-        super(2, 2, SnakeGame.getGame().coinImg);
+        super(3, 3, SnakeGame.getGame().coinImg);
         this.startTicks = SnakeGame.getGame().ticks;
         this.ticksToExist = getRandomInt(20, 100);
     }
@@ -761,6 +764,9 @@ class Purchase extends Updateable {
 	}
 
 	update(){
+		let game = SnakeGame.getGame();
+		this.buyButtonElement.disabled = game.coins < this.price;
+
 		if(this.onUpdate != null){
 			this.onUpdate(this);
 		}
@@ -779,7 +785,9 @@ class Upgrade extends Purchase {
 	buy(){
 		super.buy();
 
-		this.buyButtonElement.disabled = true;
+		if(this.purchased){
+			this.buyButtonElement.disabled = true;
+		}
 	}
 }
 
