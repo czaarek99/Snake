@@ -40,7 +40,7 @@ function getRandomInt(min, max) {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function loadImage(src){
+function loadImage(src) {
 	let img = new Image();
 	img.src = "assets/" + src;
 	return img;
@@ -48,8 +48,10 @@ function loadImage(src){
 
 class SnakeGame {
 
-    initialize() {
-        this.ticks = 0;
+	initialize() {
+		this.paused = false;
+
+		this.ticks = 0;
 		this.score = 0;
 		this.coins = 0;
 
@@ -71,8 +73,8 @@ class SnakeGame {
 		this.purchases.set("cut", new Purchase("Cut in Half", loadImage("scissors.png"), 10, () => {
 			let length = this.currentSnake.snakeParts.length;
 
-			if(length > 2){
-				for(let i = Math.floor(length / 2); i < length; i++){
+			if (length > 2) {
+				for (let i = Math.floor(length / 2); i < length; i++) {
 					this.currentSnake.popButt();
 				}
 			}
@@ -113,9 +115,19 @@ class SnakeGame {
 		this.headImgRotationsMap["up"] = 90;
 		this.headImgRotationsMap["right"] = 180;
 		this.headImgRotationsMap["down"] = 270;
+
+		let canvasEl = this.snakeCanvas.canvasEl;
+		canvasEl.addEventListener("mouseout", () => {
+			this.paused = true;
+		});
+
+		canvasEl.addEventListener("mouseenter", () => {
+			canvasEl.focus();
+			this.paused = false;
+		});
 	}
 
-	generateHTML(){
+	generateHTML() {
 		let generatePurchasesFunc = (value, key) => {
 			let container = value instanceof Upgrade ?
 				document.getElementById("upgradesContainer") : document.getElementById("purchasesContainer")
@@ -156,7 +168,7 @@ class SnakeGame {
 
 	onKeyDown(keyCode) {
 		//Prevent buttonmashing
-		if(this.prevKeyodeTicks != this.ticks){
+		if (this.prevKeyodeTicks != this.ticks) {
 			let keycodeMap = this.keycodeDirectionMap;
 
 			if (keycodeMap[keyCode] !== undefined) {
@@ -172,54 +184,52 @@ class SnakeGame {
 		this.prevKeyodeTicks = this.ticks;
 	}
 
-    setRandomPositionInside(entity, inside){
-        let respawn = true;
+	setRandomPositionInside(entity, inside) {
+		let respawn = true;
 
-        while (respawn) {
-            respawn = false;
+		while (respawn) {
+			respawn = false;
 
-            entity.x = getRandomInt(entity.width + 1, inside.width - entity.width - 1);
-            entity.y = getRandomInt(entity.height + 1, inside.height - entity.height - 1);
+			entity.x = getRandomInt(entity.width + 1, inside.width - entity.width - 1);
+			entity.y = getRandomInt(entity.height + 1, inside.height - entity.height - 1);
 
 			this.entities.forEach(collidingEntity => {
-				if(collidingEntity.collidable){
+				if (collidingEntity.collidable) {
 					if (!respawn && collidingEntity != entity && collidingEntity.collidesWith(entity)) {
 						respawn = true;
 					}
 				}
 			});
-        }
-    }
+		}
+	}
 
-    startNewGame(){
-        this.entities.forEach(entity => {
-            if (!entity.dead) {
-                entity.kill();
-            }
-        });
+	startNewGame() {
+		this.entities.forEach(entity => {
+			if (!entity.dead) {
+				entity.kill();
+			}
+		});
 
-        this.currentSnake = new Snake();
-        this.addEntity(this.currentSnake);
-        this.addEntity(new FoodEntity());
-        this.addEntity(new CoinEntity());
+		this.currentSnake = new Snake();
+		this.addEntity(this.currentSnake);
+		this.addEntity(new FoodEntity());
+		this.addEntity(new CoinEntity());
 
-        this.score = 0;
-        this.coins = 50;
+		this.score = 0;
+		this.coins = 50;
+		this.paused = false;
 
 		this.upgrades.forEach((value) => {
 			value.purchased = false;
 		});
-    }
+	}
 
-	hasUpgrade(id){
+	hasUpgrade(id) {
 		return this.upgrades.get(id).purchased;
 	}
 
 	run() {
 		this.ticks++;
-
-		let snakeCanvas = this.snakeCanvas;
-		snakeCanvas.updateCanvasSize();
 
 		let update = (value) => {
 			value.update();
@@ -228,7 +238,15 @@ class SnakeGame {
 		this.upgrades.forEach(update);
 		this.purchases.forEach(update);
 
-		if (snakeCanvas.getScaledCellHeight() > 10 && snakeCanvas.getScaledPixelWidth() > 10) {
+		let snakeCanvas = this.snakeCanvas;
+		snakeCanvas.updateCanvasSize();
+
+		let canvasCont = snakeCanvas.canvasContext;
+		if(this.paused){
+			canvasCont.fillStyle = "black";
+			canvasCont.font = "20px Arial";
+			canvasCont.fillText("Paused!", snakeCanvas.getRealWidth() / 2, snakeCanvas.getRealHeight() / 2);
+		} else if (snakeCanvas.getScaledCellHeight() > 10 && snakeCanvas.getScaledPixelWidth() > 10) {
 			let entities = this.entities;
 
 			//Update living entities, remove dead ones
@@ -250,7 +268,7 @@ class SnakeGame {
 			});
 
 			document.getElementById("scoreText").innerHTML = "Score: " + this.score;
-            document.getElementById("coinsText").innerHTML = "Coins: " + this.coins;
+			document.getElementById("coinsText").innerHTML = "Coins: " + this.coins;
 
 			//Painting
 			snakeCanvas.scaleNext();
@@ -258,8 +276,6 @@ class SnakeGame {
 				snakeCanvas.paintEntity(entity);
 			});
 		} else {
-			let canvasCont = snakeCanvas.canvasContext;
-
 			canvasCont.fillStyle = "black";
 			canvasCont.font = "30px Arial";
 			canvasCont.fillText("Window too small", 0, 30);
@@ -274,8 +290,8 @@ class SnakeCanvas {
 		this.cellWidth = 5;
 		this.cellHeight = 5;
 
-		this.canvas = document.getElementById("snakeCanvas");
-		this.canvasContext = this.canvas.getContext("2d");
+		this.canvasEl = document.getElementById("snakeCanvas");
+		this.canvasContext = this.canvasEl.getContext("2d");
 
 		this.scale = 1;
 		this.updateCanvasSize();
@@ -294,11 +310,11 @@ class SnakeCanvas {
 	}
 
 	getScaledPixelHeight() {
-		return this.canvas.height / this.scale;
+		return this.canvasEl.height / this.scale;
 	}
 
 	getScaledPixelWidth() {
-		return this.canvas.width / this.scale;
+		return this.canvasEl.width / this.scale;
 	}
 
 	scaleNext() {
@@ -306,22 +322,23 @@ class SnakeCanvas {
 	}
 
 	updateCanvasSize() {
-		this.canvas.setAttribute("width", document.body.clientWidth * 0.75);
-		this.canvas.setAttribute("height", document.body.clientHeight);
+		this.canvasEl.setAttribute("width", document.body.clientWidth * 0.75);
+		this.canvasEl.setAttribute("height", document.body.clientHeight);
 	}
 
 	getRealWidth() {
-		return this.canvas.width;
+		return this.canvasEl.width;
 	}
 
 	getRealHeight() {
-		return this.canvas.height;
+		return this.canvasEl.height;
 	}
 }
 
 class Updateable {
 
-	update(){}
+	update() {
+	}
 }
 
 class Entity extends Updateable {
@@ -467,13 +484,13 @@ class Snake extends Entity {
 		let newButtRotation = 0;
 		butt.image = game.snakeTailImg;
 
-		if(beforeButtPart.x < butt.x){
+		if (beforeButtPart.x < butt.x) {
 			newButtRotation = 0;
-		} else if(beforeButtPart.y < butt.y){
+		} else if (beforeButtPart.y < butt.y) {
 			newButtRotation = 90;
-		} else if(beforeButtPart.x > butt.x){
+		} else if (beforeButtPart.x > butt.x) {
 			newButtRotation = 180;
-		} else if(beforeButtPart.y > butt.y){
+		} else if (beforeButtPart.y > butt.y) {
 			newButtRotation = 270
 		}
 
@@ -485,32 +502,32 @@ class Snake extends Entity {
 			let partBefore = parts[i - 1];
 			let partAfter = parts[i + 1];
 
-			if(part != head && part != butt){
-				if(partBefore.y == part.y && partAfter.y == part.y && partBefore.y == partAfter.y){
+			if (part != head && part != butt) {
+				if (partBefore.y == part.y && partAfter.y == part.y && partBefore.y == partAfter.y) {
 					part.image = game.snakeStraightImg;
 					part.rotation = 90;
 				} else {
-					for(let i2 = 0; i2 < 2; i2++){
+					for (let i2 = 0; i2 < 2; i2++) {
 						//Flip the parts as there are two cases for each curve
-						if(i2 > 0){
+						if (i2 > 0) {
 							partAfter = parts[i - 1];
 							partBefore = parts[i + 1];
 						}
 
-						if(partBefore.y == part.y && part.x == partAfter.x){
-							if(partBefore.x < part.x && partAfter.y > part.y){
+						if (partBefore.y == part.y && part.x == partAfter.x) {
+							if (partBefore.x < part.x && partAfter.y > part.y) {
 								part.image = game.snakeCurveImg;
 								part.rotation = 270;
 								break;
-							} else if(partBefore.x > part.x && partAfter.y < part.y){
+							} else if (partBefore.x > part.x && partAfter.y < part.y) {
 								part.image = game.snakeCurveImg;
 								part.rotation = 90;
 								break;
-							} else if(partBefore.x > part.x && partAfter.y > part.y){
+							} else if (partBefore.x > part.x && partAfter.y > part.y) {
 								part.image = game.snakeCurveImg;
 								part.rotation = 180;
 								break;
-							} else if(partBefore.x < part.x && partAfter.y < part.y){
+							} else if (partBefore.x < part.x && partAfter.y < part.y) {
 								part.image = game.snakeCurveImg;
 								part.rotation = 0;
 								break;
@@ -534,32 +551,32 @@ class Snake extends Entity {
 		let game = SnakeGame.getGame();
 		let hasSlowUpgrade = game.hasUpgrade("slowsnake");
 
-		if(!hasSlowUpgrade || game.ticks % 2 == 0 && hasSlowUpgrade){
+		if (!hasSlowUpgrade || game.ticks % 2 == 0 && hasSlowUpgrade) {
 			this.moveForward();
 		}
 
 		let head = this.getHead();
-		if(!game.hasUpgrade("phase")){
+		if (!game.hasUpgrade("phase")) {
 			this.snakeParts.forEach(part => {
 				//We avoid checking self collisions for most items
 				//The snake needs to do that though
-				if(part != head && this.headCollidesWith(part)){
+				if (part != head && this.headCollidesWith(part)) {
 					this.onCollide(this);
 				}
 			});
 		}
 
-        if (!head.isInside(game.background)) {
-            game.startNewGame();
-        }
+		if (!head.isInside(game.background)) {
+			game.startNewGame();
+		}
 	}
 
 	onCollide(otherEntity) {
-        let game = SnakeGame.getGame();
+		let game = SnakeGame.getGame();
 		if (otherEntity instanceof FoodEntity) {
 			//TODO: Fix these parts being draw wrong until expanded
 
-			if(game.hasUpgrade("slowgrow")){
+			if (game.hasUpgrade("slowgrow")) {
 				this.append(this.snakeGrowthOnFeed / 2);
 			} else {
 				this.append(this.snakeGrowthOnFeed);
@@ -569,21 +586,21 @@ class Snake extends Entity {
 			game.addEntity(new FoodEntity());
 			game.score += 1;
 
-			if(getRandomInt(0, 1) > 0){
+			if (getRandomInt(0, 1) > 0) {
 				game.addEntity(new CoinEntity());
 			}
 
-		} else if(otherEntity instanceof CoinEntity){
+		} else if (otherEntity instanceof CoinEntity) {
 			otherEntity.kill();
 
-			if(game.hasUpgrade("doublecoin")){
+			if (game.hasUpgrade("doublecoin")) {
 				game.coins += 2;
 			} else {
 				game.coins++;
 			}
 
 
-        } else if (otherEntity instanceof Snake) {
+		} else if (otherEntity instanceof Snake) {
 			game.startNewGame();
 		}
 	}
@@ -602,7 +619,7 @@ class ImageEntity extends Entity {
 		let context = canvas.canvasContext;
 		let rotate = this.rotation != 0;
 
-		if(rotate){
+		if (rotate) {
 			context.save();
 
 			context.translate(this.x * canvas.cellWidth + ((canvas.cellWidth * this.width) / 2), this.y * canvas.cellHeight + ((canvas.cellHeight * this.height) / 2));
@@ -636,41 +653,41 @@ class SnakePartEntity extends ImageEntity {
 
 class RandomLocImageEntity extends ImageEntity {
 
-    constructor(width, height, img) {
-        super(null, null, width, height, img);
-        this.update(true);
-    }
+	constructor(width, height, img) {
+		super(null, null, width, height, img);
+		this.update(true);
+	}
 
-    update(bypass) {
-        let game = SnakeGame.getGame();
+	update(bypass) {
+		let game = SnakeGame.getGame();
 
-        if(!this.isInside(game.background) || bypass){
-            game.setRandomPositionInside(this, game.background);
-        }
-    }
+		if (!this.isInside(game.background) || bypass) {
+			game.setRandomPositionInside(this, game.background);
+		}
+	}
 }
 
 class FoodEntity extends RandomLocImageEntity {
 
-    constructor(){
-        super(2, 2, SnakeGame.getGame().appleImg);
-    }
+	constructor() {
+		super(2, 2, SnakeGame.getGame().appleImg);
+	}
 
 }
 
 class CoinEntity extends RandomLocImageEntity {
 
-    constructor(){
-        super(3, 3, SnakeGame.getGame().coinImg);
-        this.startTicks = SnakeGame.getGame().ticks;
-        this.ticksToExist = getRandomInt(20, 100);
-    }
+	constructor() {
+		super(3, 3, SnakeGame.getGame().coinImg);
+		this.startTicks = SnakeGame.getGame().ticks;
+		this.ticksToExist = getRandomInt(20, 100);
+	}
 
-    update(bypass){
-    	super.update(bypass);
+	update(bypass) {
+		super.update(bypass);
 
-    	if(SnakeGame.getGame().ticks > this.startTicks + this.ticksToExist){
-    		this.kill();
+		if (SnakeGame.getGame().ticks > this.startTicks + this.ticksToExist) {
+			this.kill();
 		}
 	}
 
@@ -730,7 +747,7 @@ class Setting {
 
 class Purchase extends Updateable {
 
-	constructor(displayName, icon, price, onPurchase, onUpdate){
+	constructor(displayName, icon, price, onPurchase, onUpdate) {
 		super();
 		this.displayName = displayName;
 		this.icon = icon;
@@ -740,30 +757,30 @@ class Purchase extends Updateable {
 		this.disabled = true;
 	}
 
-	buy(){
-		if(!this.disabled){
+	buy() {
+		if (!this.disabled) {
 			let game = SnakeGame.getGame();
-			if(game.coins >= this.price){
+			if (game.coins >= this.price) {
 				game.coins -= this.price;
 				this.purchased = true;
 
-				if(this.onPurchase != null){
+				if (this.onPurchase != null) {
 					this.onPurchase(this);
 				}
 			}
 		}
 	}
 
-	update(){
+	update() {
 		let game = SnakeGame.getGame();
 
 		this.disabled = game.coins < this.price;
 
-		if(this.onUpdate != null){
+		if (this.onUpdate != null) {
 			this.onUpdate(this);
 		}
 
-		if(this.disabled){
+		if (this.disabled) {
 			this.containingElement.classList.add("disabledPurchase");
 		} else {
 			this.containingElement.classList.remove("disabledPurchase");
@@ -774,14 +791,14 @@ class Purchase extends Updateable {
 
 class Upgrade extends Purchase {
 
-	constructor(displayName, icon, price, onPurchase, onUpdate){
+	constructor(displayName, icon, price, onPurchase, onUpdate) {
 		super(displayName, icon, price, onPurchase, onUpdate);
 
 		this.purchased = false;
 	}
 
-	buy(){
-		if(!this.purchased){
+	buy() {
+		if (!this.purchased) {
 			super.buy();
 
 			this.disabled = true;
@@ -789,10 +806,10 @@ class Upgrade extends Purchase {
 		}
 	}
 
-	update(){
+	update() {
 		super.update();
 
-		if(this.purchased){
+		if (this.purchased) {
 			this.containingElement.classList.add("purchasedPurchase");
 		} else {
 			this.containingElement.classList.remove("purchasedPurchase");
