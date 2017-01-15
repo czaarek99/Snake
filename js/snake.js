@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', initializeGame);
-
 function initializeGame() {
 	let game = SnakeGame.getGame();
 
@@ -109,10 +108,17 @@ class SnakeGame {
 		this.opposingDirectionsMap["down"] = "up";
 
 		this.keycodeDirectionMap = {};
+		//Arrow keys
 		this.keycodeDirectionMap[37] = "left";
 		this.keycodeDirectionMap[38] = "up";
 		this.keycodeDirectionMap[39] = "right";
 		this.keycodeDirectionMap[40] = "down";
+
+		//WASD
+		this.keycodeDirectionMap[65] = "left";
+		this.keycodeDirectionMap[87] = "up";
+		this.keycodeDirectionMap[68] = "right";
+		this.keycodeDirectionMap[83] = "down";
 
 		this.headImgRotationsMap = {};
 		this.headImgRotationsMap["left"] = 0;
