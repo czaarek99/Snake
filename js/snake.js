@@ -40,6 +40,12 @@ function getRandomInt(min, max) {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function loadImage(src){
+	let img = new Image();
+	img.src = "assets/" + src;
+	return img;
+}
+
 class SnakeGame {
 
     initialize() {
@@ -50,11 +56,19 @@ class SnakeGame {
 		this.upgrades = new Map();
 		this.purchases = new Map();
 
-		this.upgrades.set("phase", new Upgrade("Phasing Snake", 50, null, null));
-		this.upgrades.set("slowsnake", new Upgrade("Slow Snake", 50, null, null));
-		this.upgrades.set("slowgrow", new Upgrade("Slow Growing Snake", 25, null, null));
+		this.appleImg = loadImage("apple.png");
+		this.coinImg = loadImage("coin.png");
+		this.snakeHeadImg = loadImage("parts/head.png");
+		this.snakeCurveImg = loadImage("parts/curve.png");
+		this.snakeStraightImg = loadImage("parts/straight.png");
+		this.snakeTailImg = loadImage("parts/tail.png");
 
-		this.purchases.set("cut", new Purchase("Cut Snake in Half", 10, () => {
+		this.upgrades.set("phase", new Upgrade("Phasing Snake", this.snakeHeadImg, 50, null, null));
+		this.upgrades.set("slowsnake", new Upgrade("Slow Snake", this.snakeHeadImg, 50, null, null));
+		this.upgrades.set("doublecoin", new Upgrade("Double Coins", loadImage("doublecoin.png"), 30, null, null));
+		this.upgrades.set("slowgrow", new Upgrade("Slow Growth", loadImage("halfapple.png"), 25, null, null));
+
+		this.purchases.set("cut", new Purchase("Cut in Half", loadImage("scissors.png"), 10, () => {
 			let length = this.currentSnake.snakeParts.length;
 
 			if(length > 2){
@@ -65,24 +79,13 @@ class SnakeGame {
 		}, (purchase) => {
 			let length = this.currentSnake.snakeParts.length;
 
-			purchase.buyButtonElement.disabled = length <= 10;
+			purchase.disabled = length <= 10;
 		}));
+		this.purchases.set("suicide", new Purchase("Suicide", loadImage("snare.ico"), 5, () => {
+			this.startNewGame();
+		}, null));
 
 		this.generateHTML();
-
-		this.appleImg = new Image();
-		this.snakeHeadImg = new Image();
-		this.snakeCurveImg = new Image();
-		this.snakeStraightImg = new Image();
-		this.snakeTailImg = new Image();
-		this.coinImg = new Image();
-
-		this.appleImg.src = "assets/apple.png";
-		this.coinImg.src = "assets/coin.png";
-		this.snakeHeadImg.src = "assets/parts/head.png";
-		this.snakeCurveImg.src = "assets/parts/curve.png";
-		this.snakeStraightImg.src = "assets/parts/straight.png";
-		this.snakeTailImg.src = "assets/parts/tail.png";
 
 		this.snakeCanvas = new SnakeCanvas();
 
@@ -113,49 +116,29 @@ class SnakeGame {
 	}
 
 	generateHTML(){
-		let upgradesCont = document.getElementById("upgradesContainer");
-		this.upgrades.forEach((value, key) => {
-			var upgradeID = "InternalButtonWithId-" + key;
+		let generatePurchasesFunc = (value, key) => {
+			let container = value instanceof Upgrade ?
+				document.getElementById("upgradesContainer") : document.getElementById("purchasesContainer")
+			let purchaseID = "InternalJavascriptID-" + key;
 
-			upgradesCont.insertAdjacentHTML("beforeend", ` 
-			<div class="upgrade">
-				<p class="upgradeText noMargin">${value.displayName}</p>
-				<p class="upgradePrice noMargin">${value.price} coins</p>
-				<div class="textCenter">
-					<button class="upgradeBuyButton halfWidth" id="${upgradeID}">Buy</button>
-				</div>
-			</div>
-			`);
-
-			let purchaseButton = document.getElementById(upgradeID);
-			value.buyButtonElement = purchaseButton;
-
-			purchaseButton.addEventListener("click", () => {
-				value.buy();
-			});
-		});
-
-		let purchasesCont = document.getElementById("purchasesContainer");
-		this.purchases.forEach((value, key) => {
-			var purchaseID = "InternalButtonWithId-" + key;
-
-			purchasesCont.insertAdjacentHTML("beforeend", ` 
-			<div class="purchase">
+			container.insertAdjacentHTML("beforeend", ` 
+			<div class="purchase" id="${purchaseID}">
+				<img src="${value.icon.src}" class="purchaseIcon">
 				<p class="purchaseText noMargin">${value.displayName}</p>
-				<p class="purchasePrice noMargin">${value.price} coins</p>
-				<div class="textCenter">
-					<button class="purchaseBuyButton halfWidth" id="${purchaseID}">Buy</button>
-				</div>
+				<p class="purchasePrice noMargin">$${value.price}</p>
 			</div>
 			`);
 
-			let purchaseButton = document.getElementById(purchaseID);
-			value.buyButtonElement = purchaseButton;
+			let upgrade = document.getElementById(purchaseID);
 
-			purchaseButton.addEventListener("click", () => {
+			value.containingElement = upgrade;
+			upgrade.addEventListener("click", () => {
 				value.buy();
 			});
-		});
+		};
+
+		this.upgrades.forEach(generatePurchasesFunc);
+		this.purchases.forEach(generatePurchasesFunc);
 	}
 
 	static getGame() {
@@ -221,11 +204,10 @@ class SnakeGame {
         this.addEntity(new CoinEntity());
 
         this.score = 0;
-        this.coins = 200;
+        this.coins = 50;
 
 		this.upgrades.forEach((value) => {
 			value.purchased = false;
-			value.buyButtonElement.disabled = false;
 		});
     }
 
@@ -592,8 +574,14 @@ class Snake extends Entity {
 			}
 
 		} else if(otherEntity instanceof CoinEntity){
-		    otherEntity.kill();
-		    game.coins += 1;
+			otherEntity.kill();
+
+			if(game.hasUpgrade("doublecoin")){
+				game.coins += 2;
+			} else {
+				game.coins++;
+			}
+
 
         } else if (otherEntity instanceof Snake) {
 			game.startNewGame();
@@ -742,33 +730,43 @@ class Setting {
 
 class Purchase extends Updateable {
 
-	constructor(displayName, price, onPurchase, onUpdate){
+	constructor(displayName, icon, price, onPurchase, onUpdate){
 		super();
 		this.displayName = displayName;
+		this.icon = icon;
 		this.price = price;
 		this.onPurchase = onPurchase;
 		this.onUpdate = onUpdate;
-		this.buyButtonElement = null;
+		this.disabled = true;
 	}
 
 	buy(){
-		let game = SnakeGame.getGame();
-		if(game.coins >= this.price){
-			game.coins -= this.price;
-			this.purchased = true;
+		if(!this.disabled){
+			let game = SnakeGame.getGame();
+			if(game.coins >= this.price){
+				game.coins -= this.price;
+				this.purchased = true;
 
-			if(this.onPurchase != null){
-				this.onPurchase(this);
+				if(this.onPurchase != null){
+					this.onPurchase(this);
+				}
 			}
 		}
 	}
 
 	update(){
 		let game = SnakeGame.getGame();
-		this.buyButtonElement.disabled = game.coins < this.price;
+
+		this.disabled = game.coins < this.price;
 
 		if(this.onUpdate != null){
 			this.onUpdate(this);
+		}
+
+		if(this.disabled){
+			this.containingElement.classList.add("disabledPurchase");
+		} else {
+			this.containingElement.classList.remove("disabledPurchase");
 		}
 	}
 
@@ -776,17 +774,28 @@ class Purchase extends Updateable {
 
 class Upgrade extends Purchase {
 
-	constructor(displayName, price, onPurchase, onUpdate){
-		super(displayName, price, onPurchase, onUpdate);
+	constructor(displayName, icon, price, onPurchase, onUpdate){
+		super(displayName, icon, price, onPurchase, onUpdate);
 
 		this.purchased = false;
 	}
 
 	buy(){
-		super.buy();
+		if(!this.purchased){
+			super.buy();
+
+			this.disabled = true;
+			this.purchased = true;
+		}
+	}
+
+	update(){
+		super.update();
 
 		if(this.purchased){
-			this.buyButtonElement.disabled = true;
+			this.containingElement.classList.add("purchasedPurchase");
+		} else {
+			this.containingElement.classList.remove("purchasedPurchase");
 		}
 	}
 }
