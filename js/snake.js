@@ -3,6 +3,7 @@
  * Game entry point
  *
  * */
+
 document.addEventListener('DOMContentLoaded', initializeGame);
 function initializeGame() {
 	let game = SnakeGame.getGame();
@@ -113,7 +114,7 @@ class SnakeGame {
 		this.snakeStraightImg = loadImage("parts/straight.png");
 		this.snakeTailImg = loadImage("parts/tail.png");
 
-		this.upgrades.set("phase", new Upgrade("Phasing Snake", this.snakeHeadImg, 50, null, null));
+		this.upgrades.set("phase", new Upgrade("Phasing Snake", this.snakeHeadImg, 100, null, null));
 		this.upgrades.set("slowsnake", new Upgrade("Slow Snake", loadImage("snail.png"), 50, null, null));
 		this.upgrades.set("doublecoin", new Upgrade("Double Coins", loadImage("doublecoin.png"), 30, null, null));
 		this.upgrades.set("slowgrow", new Upgrade("Slow Growth", loadImage("halfapple.png"), 25, null, null));
