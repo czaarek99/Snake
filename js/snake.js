@@ -29,7 +29,7 @@ function initializeGame() {
 	document.addEventListener("keydown", event => {
 		SnakeGame.getGame().onKeyDown(event.keyCode);
 	});
-
+	
 	//Run at 20 ticks
 	setInterval(() => {
 		game.run();
@@ -50,7 +50,11 @@ class SnakeGame {
 
 	initialize() {
 		this.paused = false;
+		//this.gameState = "stopped";
 
+		this.menuWidth = 300;
+		this.menuContainer = document.getElementById("menuContainer");
+		
 		this.ticks = 0;
 		this.score = 0;
 		this.coins = 0;
@@ -66,7 +70,7 @@ class SnakeGame {
 		this.snakeTailImg = loadImage("parts/tail.png");
 
 		this.upgrades.set("phase", new Upgrade("Phasing Snake", this.snakeHeadImg, 50, null, null));
-		this.upgrades.set("slowsnake", new Upgrade("Slow Snake", this.snakeHeadImg, 50, null, null));
+		this.upgrades.set("slowsnake", new Upgrade("Slow Snake", loadImage("snail.png"), 50, null, null));
 		this.upgrades.set("doublecoin", new Upgrade("Double Coins", loadImage("doublecoin.png"), 30, null, null));
 		this.upgrades.set("slowgrow", new Upgrade("Slow Growth", loadImage("halfapple.png"), 25, null, null));
 
@@ -83,6 +87,7 @@ class SnakeGame {
 
 			purchase.disabled = length <= 10;
 		}));
+		
 		this.purchases.set("suicide", new Purchase("Suicide", loadImage("snare.ico"), 5, () => {
 			this.startNewGame();
 		}, null));
@@ -96,7 +101,6 @@ class SnakeGame {
 
 		this.entities = new Set();
 		this.addEntity(this.background);
-		this.startNewGame();
 
 		this.opposingDirectionsMap = {};
 		this.opposingDirectionsMap["left"] = "right";
@@ -125,9 +129,13 @@ class SnakeGame {
 			canvasEl.focus();
 			this.paused = false;
 		});
+
+		this.startNewGame();
 	}
 
 	generateHTML() {
+		this.menuContainer.style.width = this.menuWidth + "px";
+
 		let generatePurchasesFunc = (value, key) => {
 			let container = value instanceof Upgrade ?
 				document.getElementById("upgradesContainer") : document.getElementById("purchasesContainer")
@@ -167,21 +175,23 @@ class SnakeGame {
 	}
 
 	onKeyDown(keyCode) {
-		//Prevent buttonmashing
-		if (this.prevKeyodeTicks != this.ticks) {
-			let keycodeMap = this.keycodeDirectionMap;
+		if(!this.paused){
+			//Prevent buttonmashing
+			if (this.prevKeyodeTicks != this.ticks) {
+				let keycodeMap = this.keycodeDirectionMap;
 
-			if (keycodeMap[keyCode] !== undefined) {
-				let newDirection = keycodeMap[keyCode];
+				if (keycodeMap[keyCode] !== undefined) {
+					let newDirection = keycodeMap[keyCode];
 
-				let snake = this.currentSnake;
-				if (snake.snakeDirection != this.opposingDirectionsMap[newDirection]) {
-					snake.snakeDirection = newDirection;
+					let snake = this.currentSnake;
+					if (snake.snakeDirection != this.opposingDirectionsMap[newDirection]) {
+						snake.snakeDirection = newDirection;
+					}
 				}
 			}
-		}
 
-		this.prevKeyodeTicks = this.ticks;
+			this.prevKeyodeTicks = this.ticks;
+		}
 	}
 
 	setRandomPositionInside(entity, inside) {
@@ -241,12 +251,14 @@ class SnakeGame {
 		let snakeCanvas = this.snakeCanvas;
 		snakeCanvas.updateCanvasSize();
 
+		let minWindowCells = 20;
 		let canvasCont = snakeCanvas.canvasContext;
 		if(this.paused){
 			canvasCont.fillStyle = "black";
 			canvasCont.font = "20px Arial";
+			canvasCont.textAlign = "center";
 			canvasCont.fillText("Paused!", snakeCanvas.getRealWidth() / 2, snakeCanvas.getRealHeight() / 2);
-		} else if (snakeCanvas.getScaledCellHeight() > 10 && snakeCanvas.getScaledPixelWidth() > 10) {
+		} else if (snakeCanvas.getScaledCellHeight() > minWindowCells && snakeCanvas.getScaledCellWidth() > minWindowCells) {
 			let entities = this.entities;
 
 			//Update living entities, remove dead ones
@@ -278,6 +290,7 @@ class SnakeGame {
 		} else {
 			canvasCont.fillStyle = "black";
 			canvasCont.font = "30px Arial";
+			canvasCont.textAlign = "start";
 			canvasCont.fillText("Window too small", 0, 30);
 		}
 	}
@@ -322,7 +335,9 @@ class SnakeCanvas {
 	}
 
 	updateCanvasSize() {
-		this.canvasEl.setAttribute("width", document.body.clientWidth * 0.75);
+		let game = SnakeGame.getGame();
+
+		this.canvasEl.setAttribute("width", document.body.clientWidth - game.menuWidth);
 		this.canvasEl.setAttribute("height", document.body.clientHeight);
 	}
 
@@ -337,8 +352,7 @@ class SnakeCanvas {
 
 class Updateable {
 
-	update() {
-	}
+	update() {}
 }
 
 class Entity extends Updateable {
@@ -740,8 +754,13 @@ class BackgroundEntity extends ColoredEntity {
 	kill() {
 	}
 }
+
 //TODO: Make settings generate from this object
 class Setting {
+
+	constructor(displayName, value){
+
+	}
 
 }
 

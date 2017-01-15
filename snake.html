@@ -4,7 +4,8 @@
 		<meta charset="UTF-8">
 		<title>Snake.js</title>
 
-		<link href="snake.css" rel="stylesheet">
+		<link href="css/snake.css" rel="stylesheet">
+		<link href="css/font-awesome.css" rel="stylesheet">
 
 		<script src="js/snake.js" type="text/javascript"></script>
 	</head>
@@ -13,27 +14,45 @@
 		<div id="pageContainer">
 			<div id="canvasContainer">
 				<canvas id="snakeCanvas"></canvas>
+
+				<section id="newGameOverlay" class="textCenter">
+					<p class="noMargin" id="newGameOverlayText">Start new game!</p>
+				</section>
 			</div>
 
 			<aside id="menuContainer">
 
 				<section id="statsContainer" class="menuSection">
-					<h1 class="menuHeader">Stats</h1>
+					<div class="menuHeaderContainer">
+						<h1 class="menuHeader">Stats</h1>
+						<i class="fa fa-line-chart menuIcon"></i>
+					</div>
+
 
 					<p id="scoreText" class="noMargin">Score: 0</p>
 					<p id="coinsText" class="noMargin">Coins: 0</p>
 				</section>
 
 				<section id="upgradesContainer" class="menuSection">
-					<h1 class="menuHeader">Upgrades</h1>
+					<div class="menuHeaderContainer">
+						<h1 class="menuHeader">Upgrades</h1>
+						<i class="fa fa-arrow-up"></i>
+					</div>
+
 				</section>
 
 				<section id="purchasesContainer" class="menuSection">
-					<h1 class="menuHeader">Purchases</h1>
+					<div class="menuHeaderContainer">
+						<h1 class="menuHeader">Purchases</h1>
+						<i class="fa fa-usd"></i>
+					</div>
 				</section>
 
-				<section id="settingsContainer" class="menuSection textCenter">
-					<h1 class="menuHeader">Settings</h1>
+				<section id="settingsContainer" class="menuSection">
+					<div class="menuHeaderContainer">
+						<h1 class="menuHeader">Settings</h1>
+						<i class="fa fa-gear"></i>
+					</div>
 
 					<div class="sliderContainer">
 						<div class="sliderTextContainer">

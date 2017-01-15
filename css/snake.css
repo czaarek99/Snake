@@ -11,7 +11,10 @@ body, html {
 	display: flex;
 }
 
-/* TODO: Fix overflow not working quite right */
+#canvasContainer {
+	position: relative;
+}
+
 #menuContainer {
 	flex: 10px;
 	overflow: auto;
@@ -20,13 +23,51 @@ body, html {
 	padding-right: 20px;
 }
 
+#newGameOverlay {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	border: 2px solid black;
+	background: #ffffff;
+	display: none;
+	/*display: flex;*/
+	align-items: center;
+	justify-content: center;
+
+	height: 90px;
+	width: 200px;
+
+	transform: translate(-50%, -50%);
+}
+
+#newGameOverlay:hover {
+	background: #f1f1f1;
+}
+
+#newGameOverlayText {
+	vertical-align: middle;
+	font-weight: bold;
+}
+
 .menuSection {
 
 }
 
+.menuHeaderContainer {
+	display: flex;
+}
+
 .menuHeader {
 	margin-bottom: 0;
-	text-align: center;
+	flex: 10px;
+}
+
+.menuHeaderContainer > * {
+	margin-top: 15px;
+}
+
+.menuIcon {
+
 }
 
 /* Utilities */
