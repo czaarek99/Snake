@@ -1,3 +1,8 @@
+/**
+ *
+ * Game entry point
+ *
+ * */
 document.addEventListener('DOMContentLoaded', initializeGame);
 function initializeGame() {
 	let game = SnakeGame.getGame();
@@ -35,6 +40,12 @@ function initializeGame() {
 	}, 50);
 }
 
+/**
+ *
+ * Global utility functions
+ *
+ * */
+
 function getRandomInt(min, max) {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -45,6 +56,40 @@ function loadImage(src) {
 	return img;
 }
 
+/**
+ *
+ * Enum classes
+ *
+ * */
+
+class Direction {
+
+	constructor(direction, oppositeDirection, headRotation){
+		this.direction = direction;
+		this.oppositeDirection = oppositeDirection;
+		this.headRotation = headRotation;
+	}
+
+	isOpposite(direction){
+		return this.oppositeDirection == direction.direction;
+	}
+
+	toString(){
+		return this.direction;
+	}
+
+}
+
+Direction.LEFT = new Direction("left", "right", 0);
+Direction.UP = new Direction("up", "down", 90);
+Direction.RIGHT = new Direction("right", "left", 180);
+Direction.DOWN = new Direction("down", "up", 270);
+
+/**
+ *
+ * Game logic
+ *
+ * */
 class SnakeGame {
 
 	initialize() {
@@ -94,37 +139,24 @@ class SnakeGame {
 		this.generateHTML();
 
 		this.snakeCanvas = new SnakeCanvas();
-
 		this.background = new BackgroundEntity();
 		this.currentSnake = new Snake();
 
 		this.entities = new Set();
 		this.addEntity(this.background);
 
-		this.opposingDirectionsMap = {};
-		this.opposingDirectionsMap["left"] = "right";
-		this.opposingDirectionsMap["up"] = "down";
-		this.opposingDirectionsMap["right"] = "left";
-		this.opposingDirectionsMap["down"] = "up";
-
 		this.keycodeDirectionMap = {};
+
 		//Arrow keys
-		this.keycodeDirectionMap[37] = "left";
-		this.keycodeDirectionMap[38] = "up";
-		this.keycodeDirectionMap[39] = "right";
-		this.keycodeDirectionMap[40] = "down";
-
+		this.keycodeDirectionMap[37] = Direction.LEFT;
+		this.keycodeDirectionMap[38] = Direction.UP;
+		this.keycodeDirectionMap[39] = Direction.RIGHT;
+		this.keycodeDirectionMap[40] = Direction.DOWN;
 		//WASD
-		this.keycodeDirectionMap[65] = "left";
-		this.keycodeDirectionMap[87] = "up";
-		this.keycodeDirectionMap[68] = "right";
-		this.keycodeDirectionMap[83] = "down";
-
-		this.headImgRotationsMap = {};
-		this.headImgRotationsMap["left"] = 0;
-		this.headImgRotationsMap["up"] = 90;
-		this.headImgRotationsMap["right"] = 180;
-		this.headImgRotationsMap["down"] = 270;
+		this.keycodeDirectionMap[65] = Direction.LEFT;
+		this.keycodeDirectionMap[87] = Direction.UP;
+		this.keycodeDirectionMap[68] = Direction.RIGHT;
+		this.keycodeDirectionMap[83] = Direction.DOWN;
 
 		let canvasEl = this.snakeCanvas.canvasEl;
 		canvasEl.addEventListener("mouseout", () => {
@@ -190,7 +222,7 @@ class SnakeGame {
 					let newDirection = keycodeMap[keyCode];
 
 					let snake = this.currentSnake;
-					if (snake.snakeDirection != this.opposingDirectionsMap[newDirection]) {
+					if (!snake.snakeDirection.isOpposite(newDirection)) {
 						snake.snakeDirection = newDirection;
 					}
 				}
@@ -232,6 +264,7 @@ class SnakeGame {
 		this.addEntity(new CoinEntity());
 
 		this.score = 0;
+		this.ticks = 0;
 		this.coins = 50;
 		this.paused = false;
 
@@ -411,7 +444,7 @@ class Snake extends Entity {
 		this.SNAKE_START_LENGT = 5;
 		this.snakeGrowthOnFeed = 4;
 
-		this.snakeDirection = "right";
+		this.snakeDirection = Direction.RIGHT;
 		this.snakeParts = [];
 
 		//Initialize start snake
@@ -454,16 +487,16 @@ class Snake extends Entity {
 		let snakeHead = this.getHead();
 		let direction = this.snakeDirection;
 
-		if (direction == "left") {
+		if (direction == Direction.LEFT) {
 			snakeButt.x = snakeHead.x - 1;
 			snakeButt.y = snakeHead.y;
-		} else if (direction == "up") {
+		} else if (direction == Direction.UP) {
 			snakeButt.y = snakeHead.y - 1;
 			snakeButt.x = snakeHead.x;
-		} else if (direction == "right") {
+		} else if (direction == Direction.RIGHT) {
 			snakeButt.x = snakeHead.x + 1;
 			snakeButt.y = snakeHead.y;
-		} else if (direction == "down") {
+		} else if (direction == Direction.DOWN) {
 			snakeButt.y = snakeHead.y + 1;
 			snakeButt.x = snakeHead.x;
 		}
@@ -499,7 +532,7 @@ class Snake extends Entity {
 
 		//Handle rotations for head and butt
 		head.image = game.snakeHeadImg;
-		head.rotation = game.headImgRotationsMap[this.snakeDirection];
+		head.rotation = this.snakeDirection.headRotation;
 
 		let newButtRotation = 0;
 		butt.image = game.snakeTailImg;
