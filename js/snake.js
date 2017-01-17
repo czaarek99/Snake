@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', initializeGame);
 function initializeGame() {
 	let game = SnakeGame.getGame();
 
-	let scaleSlider = document.getElementById("scaleSlider");
+	let scaleSlider = $("#scaleSlider");
 	let snakeCanvas = game.snakeCanvas;
 
 	snakeCanvas.scale = scaleSlider.value;
@@ -57,6 +57,16 @@ function loadImage(src) {
 	return img;
 }
 
+function $(selector){
+	if(selector.startsWith("#")){
+		return document.getElementById(selector.substring(1));
+	} else if(selector.startsWith(".")){
+		return document.getElementsByClassName(selector.substring(1));
+ 	} else {
+		return undefined;
+	}
+}
+
 /**
  *
  * Enum classes
@@ -86,6 +96,22 @@ Direction.UP = new Direction("up", "down", 90);
 Direction.RIGHT = new Direction("right", "left", 180);
 Direction.DOWN = new Direction("down", "up", 270);
 
+class GameState {
+
+	constructor(state){
+		this.state = state;
+	}
+
+	toString(){
+		return this.state;
+	}
+
+}
+
+GameState.RUNNING = new GameState("running");
+GameState.PAUSED = new GameState("paused");
+GameState.STOPPED = new GameState("stopped");
+
 /**
  *
  * Game logic
@@ -94,14 +120,17 @@ Direction.DOWN = new Direction("down", "up", 270);
 class SnakeGame {
 
 	initialize() {
-		this.paused = false;
-		//this.gameState = "stopped";
+		this.gameState = GameState.STOPPED;
 
 		this.menuWidth = 300;
-		this.menuContainer = document.getElementById("menuContainer");
+		this.newGameOverlayEl = $("#newGameOverlay");
+		this.newGameOverlayEl.addEventListener("click", () => {
+			this.startNewGame();
+		});
 		
 		this.ticks = 0;
 		this.score = 0;
+		this.highscore = 0;
 		this.coins = 0;
 
 		this.upgrades = new Map();
@@ -134,7 +163,7 @@ class SnakeGame {
 		}));
 		
 		this.purchases.set("suicide", new Purchase("Suicide", loadImage("snare.ico"), 5, () => {
-			this.startNewGame();
+			this.stopGame();
 		}, null));
 
 		this.generateHTML();
@@ -161,23 +190,26 @@ class SnakeGame {
 
 		let canvasEl = this.snakeCanvas.canvasEl;
 		canvasEl.addEventListener("mouseout", () => {
-			this.paused = true;
+			if(this.gameState == GameState.RUNNING){
+				this.gameState = GameState.PAUSED;
+			}
 		});
 
 		canvasEl.addEventListener("mouseenter", () => {
-			canvasEl.focus();
-			this.paused = false;
-		});
+			if(this.gameState == GameState.PAUSED) {
+				this.gameState = GameState.RUNNING;
+                canvasEl.focus();
+			}
 
-		this.startNewGame();
+		});
 	}
 
 	generateHTML() {
-		this.menuContainer.style.width = this.menuWidth + "px";
+        $("#menuContainer").style.width = this.menuWidth + "px";
 
 		let generatePurchasesFunc = (value, key) => {
 			let container = value instanceof Upgrade ?
-				document.getElementById("upgradesContainer") : document.getElementById("purchasesContainer")
+				$("#upgradesContainer") : $("#purchasesContainer")
 			let purchaseID = "InternalJavascriptID-" + key;
 
 			container.insertAdjacentHTML("beforeend", ` 
@@ -214,7 +246,7 @@ class SnakeGame {
 	}
 
 	onKeyDown(keyCode) {
-		if(!this.paused){
+		if(this.gameState == GameState.RUNNING){
 			//Prevent buttonmashing
 			if (this.prevKeyodeTicks != this.ticks) {
 				let keycodeMap = this.keycodeDirectionMap;
@@ -253,25 +285,39 @@ class SnakeGame {
 	}
 
 	startNewGame() {
-		this.entities.forEach(entity => {
-			if (!entity.dead) {
-				entity.kill();
-			}
-		});
+		this.newGameOverlayEl.style.display = "none";
+        this.gameState = GameState.RUNNING;
 
 		this.currentSnake = new Snake();
 		this.addEntity(this.currentSnake);
 		this.addEntity(new FoodEntity());
 		this.addEntity(new CoinEntity());
 
-		this.score = 0;
-		this.ticks = 0;
 		this.coins = 50;
-		this.paused = false;
+	}
 
-		this.upgrades.forEach((value) => {
-			value.purchased = false;
-		});
+	stopGame(){
+        this.gameState = GameState.STOPPED;
+		this.newGameOverlayEl.style.display = "flex";
+
+        this.entities.forEach(entity => {
+            if (!entity.dead) {
+                entity.kill();
+            }
+        });
+
+        if(this.score > this.highscore){
+        	this.highscore = this.score;
+		}
+
+        $("#highscoreText").innerText = "Highscore: " + this.highscore;
+
+        this.score = 0;
+        this.ticks = 0;
+
+        this.upgrades.forEach((value) => {
+            value.purchased = false;
+        });
 	}
 
 	hasUpgrade(id) {
@@ -293,7 +339,7 @@ class SnakeGame {
 
 		let minWindowCells = 20;
 		let canvasCont = snakeCanvas.canvasContext;
-		if(this.paused){
+		if(this.gameState == GameState.PAUSED){
 			canvasCont.fillStyle = "black";
 			canvasCont.font = "20px Arial";
 			canvasCont.textAlign = "center";
@@ -319,8 +365,8 @@ class SnakeGame {
 				})
 			});
 
-			document.getElementById("scoreText").innerHTML = "Score: " + this.score;
-			document.getElementById("coinsText").innerHTML = "Coins: " + this.coins;
+			$("#scoreText").innerHTML = "Score: " + this.score;
+			$("#coinsText").innerHTML = "Coins: " + this.coins;
 
 			//Painting
 			snakeCanvas.scaleNext();
@@ -343,7 +389,7 @@ class SnakeCanvas {
 		this.cellWidth = 5;
 		this.cellHeight = 5;
 
-		this.canvasEl = document.getElementById("snakeCanvas");
+		this.canvasEl = $("#snakeCanvas");
 		this.canvasContext = this.canvasEl.getContext("2d");
 
 		this.scale = 1;
@@ -621,7 +667,7 @@ class Snake extends Entity {
 		}
 
 		if (!head.isInside(game.background)) {
-			game.startNewGame();
+			game.stopGame();
 		}
 	}
 
@@ -655,7 +701,7 @@ class Snake extends Entity {
 
 
 		} else if (otherEntity instanceof Snake) {
-			game.startNewGame();
+			game.stopGame();
 		}
 	}
 }

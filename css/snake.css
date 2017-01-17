@@ -29,8 +29,8 @@ body, html {
 	left: 50%;
 	border: 2px solid black;
 	background: #ffffff;
-	display: none;
-	/*display: flex;*/
+	display: flex;
+	flex-direction: column;
 	align-items: center;
 	justify-content: center;
 
