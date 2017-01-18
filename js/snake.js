@@ -4,42 +4,22 @@
  *
  * */
 
-document.addEventListener('DOMContentLoaded', initializeGame);
-function initializeGame() {
+document.addEventListener('DOMContentLoaded', () => {
 	let game = SnakeGame.getGame();
 
-	let scaleSlider = $("#scaleSlider");
-	let snakeCanvas = game.snakeCanvas;
-
-	snakeCanvas.scale = scaleSlider.value;
-	scaleSlider.addEventListener("input", function () {
-		snakeCanvas.scale = this.value;
-	});
-
-	//All sliders automatically update their values
-	let sliderContainers = document.getElementsByClassName("sliderContainer");
-	for (let i = 0; i < sliderContainers.length; i++) {
-		let sliderContainer = sliderContainers[i];
-		let sliderValue = sliderContainer.getElementsByClassName("sliderValue")[0];
-		let slider = sliderContainer.getElementsByClassName("slider")[0];
-
-		let update = () => {
-			sliderValue.innerHTML = slider.value
-		};
-
-		update();
-		slider.addEventListener("input", update);
-	}
-
 	document.addEventListener("keydown", event => {
-		SnakeGame.getGame().onKeyDown(event.keyCode);
+		game.onKeyDown(event.keyCode);
 	});
-	
+
 	//Run at 20 ticks
 	setInterval(() => {
 		game.run();
 	}, 50);
-}
+
+	setInterval(() => {
+		game.save();
+	}, 5000);
+});
 
 /**
  *
@@ -62,9 +42,7 @@ function $(selector){
 		return document.getElementById(selector.substring(1));
 	} else if(selector.startsWith(".")){
 		return document.getElementsByClassName(selector.substring(1));
- 	} else {
-		return undefined;
-	}
+ 	}
 }
 
 /**
@@ -123,14 +101,18 @@ class SnakeGame {
 		this.gameState = GameState.STOPPED;
 
 		this.menuWidth = 300;
-		this.newGameOverlayEl = $("#newGameOverlay");
-		this.newGameOverlayEl.addEventListener("click", () => {
+		$("#newGameOverlay").addEventListener("click", () => {
 			this.startNewGame();
 		});
-		
+
+		if(Cookies.get("savedValues") === undefined){
+			this.savedValues = {highscore: 0};
+		} else {
+			this.savedValues = Cookies.getJSON("savedValues");
+		}
+
 		this.ticks = 0;
 		this.score = 0;
-		this.highscore = 0;
 		this.coins = 0;
 
 		this.upgrades = new Map();
@@ -205,11 +187,12 @@ class SnakeGame {
 	}
 
 	generateHTML() {
+		$("#highscoreText").innerText = "Highscore: " + this.savedValues.highscore;
         $("#menuContainer").style.width = this.menuWidth + "px";
 
 		let generatePurchasesFunc = (value, key) => {
 			let container = value instanceof Upgrade ?
-				$("#upgradesContainer") : $("#purchasesContainer")
+				$("#upgradesContainer") : $("#purchasesContainer");
 			let purchaseID = "InternalJavascriptID-" + key;
 
 			container.insertAdjacentHTML("beforeend", ` 
@@ -285,7 +268,7 @@ class SnakeGame {
 	}
 
 	startNewGame() {
-		this.newGameOverlayEl.style.display = "none";
+		this.updateNewGameOverlay(false);
         this.gameState = GameState.RUNNING;
 
 		this.currentSnake = new Snake();
@@ -298,7 +281,6 @@ class SnakeGame {
 
 	stopGame(){
         this.gameState = GameState.STOPPED;
-		this.newGameOverlayEl.style.display = "flex";
 
         this.entities.forEach(entity => {
             if (!entity.dead) {
@@ -306,11 +288,9 @@ class SnakeGame {
             }
         });
 
-        if(this.score > this.highscore){
-        	this.highscore = this.score;
+        if(this.score > this.savedValues.highscore){
+			this.savedValues.highscore = this.score;
 		}
-
-        $("#highscoreText").innerText = "Highscore: " + this.highscore;
 
         this.score = 0;
         this.ticks = 0;
@@ -318,10 +298,27 @@ class SnakeGame {
         this.upgrades.forEach((value) => {
             value.purchased = false;
         });
+
+		this.updateNewGameOverlay(true);
+	}
+
+	updateNewGameOverlay(show){
+		let overlayElement = $("#newGameOverlay");
+		if(show){
+			$("#highscoreText").innerText = "Highscore: " + this.savedValues.highscore;
+			overlayElement.style.display = "flex";
+		} else {
+			overlayElement.style.display = "none";
+		}
+
 	}
 
 	hasUpgrade(id) {
 		return this.upgrades.get(id).purchased;
+	}
+
+	save(){
+		Cookies.set("savedValues", this.savedValues, {expires: 365});
 	}
 
 	run() {
@@ -425,6 +422,22 @@ class SnakeCanvas {
 
 		this.canvasEl.setAttribute("width", document.body.clientWidth - game.menuWidth);
 		this.canvasEl.setAttribute("height", document.body.clientHeight);
+
+		let minPixels = 1900;
+		let maxPixels = 2100;
+
+		while(true){
+			let pixels = this.getScaledCellWidth() * this.getScaledCellHeight();
+			if(pixels > maxPixels){
+				this.scale += 0.03;
+			} else if(pixels < minPixels){
+				this.scale -= 0.03;
+			} else {
+				break;
+			}
+		}
+
+
 	}
 
 	getRealWidth() {
@@ -529,6 +542,8 @@ class Snake extends Entity {
 		return this.getHead().collidesWith(item);
 	}
 
+	//TODO: Fix this algorithm to allow smoother animation at lower speeds
+	//(for example when using slow snake)
 	moveForward() {
 		let snakeButt = this.popButt();
 		let snakeHead = this.getHead();
@@ -841,15 +856,6 @@ class BackgroundEntity extends ColoredEntity {
 	}
 }
 
-//TODO: Make settings generate from this object
-class Setting {
-
-	constructor(displayName, value){
-
-	}
-
-}
-
 class Purchase extends Updateable {
 
 	constructor(displayName, icon, price, onPurchase, onUpdate) {
@@ -920,6 +926,15 @@ class Upgrade extends Purchase {
 			this.containingElement.classList.remove("purchasedPurchase");
 		}
 	}
+}
+
+//TODO: Make settings generate from this object
+class Setting {
+
+	constructor(displayName, value){
+
+	}
+
 }
 
 
