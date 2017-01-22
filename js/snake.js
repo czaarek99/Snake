@@ -4,7 +4,7 @@
  *
  * */
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
 	let game = SnakeGame.getGame();
 
 	document.addEventListener("keydown", event => {
@@ -117,6 +117,7 @@ class SnakeGame {
 
 		this.upgrades = new Map();
 		this.purchases = new Map();
+		this.settings = new Map();
 
 		this.appleImg = loadImage("apple.png");
 		this.coinImg = loadImage("coin.png");
@@ -147,6 +148,12 @@ class SnakeGame {
 		this.purchases.set("suicide", new Purchase("Suicide", loadImage("snare.ico"), 5, () => {
 			this.stopGame();
 		}, null));
+
+		let addSetting = (setting) => {
+			this.settings.set(setting.name, setting);
+		};
+
+		addSetting(new SliderSetting("scale"));
 
 		this.generateHTML();
 
@@ -193,22 +200,8 @@ class SnakeGame {
 		let generatePurchasesFunc = (value, key) => {
 			let container = value instanceof Upgrade ?
 				$("#upgradesContainer") : $("#purchasesContainer");
-			let purchaseID = "InternalJavascriptID-" + key;
 
-			container.insertAdjacentHTML("beforeend", ` 
-			<div class="purchase" id="${purchaseID}">
-				<img src="${value.icon.src}" class="purchaseIcon">
-				<p class="purchaseText noMargin">${value.displayName}</p>
-				<p class="purchasePrice noMargin">$${value.price}</p>
-			</div>
-			`);
-
-			let upgrade = document.getElementById(purchaseID);
-
-			value.containingElement = upgrade;
-			upgrade.addEventListener("click", () => {
-				value.buy();
-			});
+			value.generate(key, container);
 		};
 
 		this.upgrades.forEach(generatePurchasesFunc);
@@ -299,6 +292,7 @@ class SnakeGame {
             value.purchased = false;
         });
 
+		this.save();
 		this.updateNewGameOverlay(true);
 	}
 
@@ -898,6 +892,25 @@ class Purchase extends Updateable {
 		}
 	}
 
+	generate(id, container){
+		let fullId = "InternalID_" + id;
+
+		container.insertAdjacentHTML("beforeend",
+			`<div class="purchase" id="${fullId}">
+				<img src="${this.icon.src}" class="purchaseIcon">
+				<p class="purchaseText noMargin">${this.displayName}</p>
+				<p class="purchasePrice noMargin">${this.price}</p>
+			</div>`
+		);
+
+		let upgrade = document.getElementById(fullId);
+
+		this.containingElement = upgrade;
+		upgrade.addEventListener("click", () => {
+			this.buy();
+		});
+	}
+
 }
 
 class Upgrade extends Purchase {
@@ -931,12 +944,56 @@ class Upgrade extends Purchase {
 //TODO: Make settings generate from this object
 class Setting {
 
-	constructor(displayName, value){
+	constructor(name, value){
+		this.name = name;
+		this.value = value;
+	}
 
+	save(){
+		Cookies.set(this.name, this.value, { expires: 365 });
+	}
+
+	generate(){
+		throw new Error("No implementation for generating this kind of setting");
 	}
 
 }
 
+class SliderSetting extends Setting {
+
+	constructor(name, value, minValue, maxValue, step){
+		super(name, value);
+		this.value = value;
+		this.minValue = minValue;
+		this.maxValue = maxValue;
+		this.step = step;
+	}
+
+	generate(container){
+		let sliderTextID = "InternalSliderTextID_" + this.name;
+		let sliderID = "InternalSliderID_" + this.name;
+
+		container.insertAdjacentHTML("beforeend",
+			`<div class="sliderContainer">
+				<div class="sliderTextContainer">
+					<p id="${sliderTextID}" class="sliderName">${this.name}</p>
+					<p class="sliderValue">${this.value}</p>
+				</div>
+
+				<input type="range" min="${this.minValue}" max="${this.maxValue}" value="${this.value}" step="${this.step}" id="${sliderID}" class="slider">
+			</div>`
+		);
+
+		let slider = document.getElementById(sliderID);
+		let sliderText = document.getElementById(sliderTextID);
+
+		slider.addEventListener("input", () => {
+			sliderText.innerHTML = slider.value;
+		});
+
+	}
+
+}
 
 
 
