@@ -5,6 +5,11 @@
  * */
 
 document.addEventListener("DOMContentLoaded", () => {
+	Date.prototype.addSeconds = function(seconds) {
+		this.setDate(this.getSeconds() + parseInt(seconds));
+		return this;
+	};
+
 	let game = SnakeGame.getGame();
 
 	document.addEventListener("keydown", event => {
@@ -31,6 +36,11 @@ function getRandomInt(min, max) {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function getRandFutureDate(minSeconds, maxSeconds){
+	let date = new Date();
+	return date.addSeconds(getRandomInt(minSeconds, maxSeconds));
+}
+
 function loadImage(src) {
 	let img = new Image();
 	img.src = "assets/" + src;
@@ -51,6 +61,7 @@ function $(selector){
  *
  * */
 
+const directions = [];
 class Direction {
 
 	constructor(direction, oppositeDirection, headRotation){
@@ -67,12 +78,22 @@ class Direction {
 		return this.direction;
 	}
 
+	static getRandomDirection(){
+		return directions[getRandomInt(0, directions.length - 1)];
+	}
+
+	static addDirection(direction){
+		directions.push(direction);
+		return direction;
+	}
+
 }
 
-Direction.LEFT = new Direction("left", "right", 0);
-Direction.UP = new Direction("up", "down", 90);
-Direction.RIGHT = new Direction("right", "left", 180);
-Direction.DOWN = new Direction("down", "up", 270);
+Direction.LEFT = Direction.addDirection(new Direction("left", "right", 0));
+Direction.UP = Direction.addDirection(new Direction("up", "down", 90));
+Direction.RIGHT = Direction.addDirection(new Direction("right", "left", 180));
+Direction.DOWN = Direction.addDirection(new Direction("down", "up", 270));
+Object.freeze(directions);
 
 class GameState {
 
@@ -125,6 +146,7 @@ class SnakeGame {
 		this.snakeCurveImg = loadImage("parts/curve.png");
 		this.snakeStraightImg = loadImage("parts/straight.png");
 		this.snakeTailImg = loadImage("parts/tail.png");
+		this.birdImg = loadImage("bird.png");
 
 		this.upgrades.set("phase", new Upgrade("Phasing Snake", this.snakeHeadImg, 100, null, null));
 		this.upgrades.set("slowsnake", new Upgrade("Slow Snake", loadImage("snail.png"), 50, null, null));
@@ -149,6 +171,7 @@ class SnakeGame {
 			this.stopGame();
 		}, null));
 
+		//TODO: When we actually need settings make this work
 		let addSetting = (setting) => {
 			this.settings.set(setting.name, setting);
 		};
@@ -166,16 +189,11 @@ class SnakeGame {
 
 		this.keycodeDirectionMap = {};
 
-		//Arrow keys
-		this.keycodeDirectionMap[37] = Direction.LEFT;
-		this.keycodeDirectionMap[38] = Direction.UP;
-		this.keycodeDirectionMap[39] = Direction.RIGHT;
-		this.keycodeDirectionMap[40] = Direction.DOWN;
-		//WASD
-		this.keycodeDirectionMap[65] = Direction.LEFT;
-		this.keycodeDirectionMap[87] = Direction.UP;
-		this.keycodeDirectionMap[68] = Direction.RIGHT;
-		this.keycodeDirectionMap[83] = Direction.DOWN;
+		//WASD = Arrow Keys = Direction
+		this.keycodeDirectionMap[65] = this.keycodeDirectionMap[37] = Direction.LEFT;
+		this.keycodeDirectionMap[87] = this.keycodeDirectionMap[38] = Direction.UP;
+		this.keycodeDirectionMap[68] = this.keycodeDirectionMap[39] = Direction.RIGHT;
+		this.keycodeDirectionMap[83] = this.keycodeDirectionMap[40] = Direction.DOWN;
 
 		let canvasEl = this.snakeCanvas.canvasEl;
 		canvasEl.addEventListener("mouseout", () => {
@@ -268,6 +286,7 @@ class SnakeGame {
 		this.addEntity(this.currentSnake);
 		this.addEntity(new FoodEntity());
 		this.addEntity(new CoinEntity());
+		this.addEntity(new BirdEntity());
 
 		this.coins = 50;
 	}
@@ -488,6 +507,18 @@ class Entity extends Updateable {
 	}
 
 	onCollide(otherEntity) {
+	}
+
+	moveForward(direction){
+		if(direction == Direction.LEFT){
+			this.x--;
+		} else if(direction == Direction.UP){
+			this.y--;
+		} else if(direction == Direction.RIGHT){
+			this.x++;
+		} else if(direction == Direction.DOWN){
+			this.y++;
+		}
 	}
 }
 
@@ -788,19 +819,54 @@ class CoinEntity extends RandomLocImageEntity {
 
 	constructor() {
 		super(3, 3, SnakeGame.getGame().coinImg);
-		this.startTicks = SnakeGame.getGame().ticks;
-		this.ticksToExist = getRandomInt(20, 100);
+		this.deathDate = getRandFutureDate(1, 5);
 	}
 
 	update(bypass) {
 		super.update(bypass);
 
-		if (SnakeGame.getGame().ticks > this.startTicks + this.ticksToExist) {
+		if(new Date() >= this.deathDate){
 			this.kill();
 		}
 	}
 
 
+}
+
+class BirdEntity extends RandomLocImageEntity {
+
+	constructor() {
+		super(4, 4, SnakeGame.getGame().birdImg);
+		this.direction = Direction.LEFT;
+		this.changeDirectionDate = getRandFutureDate(1, 5);
+	}
+
+	update(){
+		this.moveForward();
+
+		if(new Date() >= this.changeDirectionDate){
+			this.changeDirectionDate = getRandFutureDate(2, 6);
+			this.direction = Direction.getRandomDirection();
+		}
+	}
+
+	moveForward(){
+		let prevX = this.x;
+		let prevY = this.y;
+
+		let retry = true;
+		while(retry){
+			super.moveForward(this.direction);
+
+			if(this.isInside(SnakeGame.getGame().background)){
+				retry = false;
+			} else {
+				this.x = prevX;
+				this.y = prevY;
+				this.direction = Direction.getRandomDirection();
+			}
+		}
+	}
 }
 
 class TextEntity extends ColoredEntity {
