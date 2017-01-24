@@ -5,11 +5,6 @@
  * */
 
 document.addEventListener("DOMContentLoaded", () => {
-	Date.prototype.addSeconds = function(seconds) {
-		this.setDate(this.getSeconds() + parseInt(seconds));
-		return this;
-	};
-
 	let game = SnakeGame.getGame();
 
 	document.addEventListener("keydown", event => {
@@ -38,7 +33,8 @@ function getRandomInt(min, max) {
 
 function getRandFutureDate(minSeconds, maxSeconds){
 	let date = new Date();
-	return date.addSeconds(getRandomInt(minSeconds, maxSeconds));
+	date.setSeconds(date.getSeconds() + getRandomInt(minSeconds, maxSeconds));
+	return date;
 }
 
 function loadImage(src) {
@@ -182,10 +178,11 @@ class SnakeGame {
 
 		this.snakeCanvas = new SnakeCanvas();
 		this.background = new BackgroundEntity();
-		this.currentSnake = new Snake();
+		this.scoreText = new TextEntity(0, 0, "#afafaf", "0", "Arial 20px", "center");
 
 		this.entities = new Set();
 		this.addEntity(this.background);
+		this.addEntity(this.scoreText);
 
 		this.keycodeDirectionMap = {};
 
@@ -378,8 +375,14 @@ class SnakeGame {
 			$("#scoreText").innerHTML = "Score: " + this.score;
 			$("#coinsText").innerHTML = "Coins: " + this.coins;
 
+			this.scoreText.text = this.score;
+
 			//Painting
 			snakeCanvas.scaleNext();
+
+			this.scoreText.x = this.snakeCanvas.getScaledCellWidth() / 2;
+			this.scoreText.y = this.snakeCanvas.getScaledCellHeight() / 2;
+
 			entities.forEach(entity => {
 				snakeCanvas.paintEntity(entity);
 			});
@@ -501,6 +504,7 @@ class Entity extends Updateable {
 
 	kill() {
 		this.dead = true;
+		SnakeGame.getGame().stopGame();
 	}
 
 	paint(canvas) {
@@ -713,9 +717,12 @@ class Snake extends Entity {
 
 	onCollide(otherEntity) {
 		let game = SnakeGame.getGame();
+		if(otherEntity instanceof Snake){
+			this.kill();
+		}
+
 		if (otherEntity instanceof FoodEntity) {
 			//TODO: Fix these parts being draw wrong until expanded
-
 			if (game.hasUpgrade("slowgrow")) {
 				this.append(this.snakeGrowthOnFeed / 2);
 			} else {
@@ -740,10 +747,16 @@ class Snake extends Entity {
 			}
 
 
-		} else if (otherEntity instanceof Snake) {
-			game.stopGame();
 		}
 	}
+}
+
+class PlayerSnake extends Snake {
+
+	constructor(){
+
+	}
+
 }
 
 class ImageEntity extends Entity {
@@ -795,15 +808,20 @@ class RandomLocImageEntity extends ImageEntity {
 
 	constructor(width, height, img) {
 		super(null, null, width, height, img);
-		this.update(true);
+		this.spawn();
 	}
 
-	update(bypass) {
+	update() {
 		let game = SnakeGame.getGame();
 
-		if (!this.isInside(game.background) || bypass) {
-			game.setRandomPositionInside(this, game.background);
+		if (!this.isInside(game.background)) {
+			this.spawn();
 		}
+	}
+
+	spawn(){
+        let game = SnakeGame.getGame();
+        game.setRandomPositionInside(this, game.background);
 	}
 }
 
@@ -819,13 +837,11 @@ class CoinEntity extends RandomLocImageEntity {
 
 	constructor() {
 		super(3, 3, SnakeGame.getGame().coinImg);
-		this.deathDate = getRandFutureDate(1, 5);
+        this.deathDate = getRandFutureDate(2, 6);
 	}
 
-	update(bypass) {
-		super.update(bypass);
-
-		if(new Date() >= this.deathDate){
+	update() {
+		if(new Date().getTime() >= this.deathDate.getTime()){
 			this.kill();
 		}
 	}
@@ -838,14 +854,14 @@ class BirdEntity extends RandomLocImageEntity {
 	constructor() {
 		super(4, 4, SnakeGame.getGame().birdImg);
 		this.direction = Direction.LEFT;
-		this.changeDirectionDate = getRandFutureDate(1, 5);
+		this.changeDirectionDate = getRandFutureDate(5, 10);
 	}
 
 	update(){
 		this.moveForward();
 
-		if(new Date() >= this.changeDirectionDate){
-			this.changeDirectionDate = getRandFutureDate(2, 6);
+		if(new Date().getTime() >= this.changeDirectionDate.getTime()){
+			this.changeDirectionDate = getRandFutureDate(3, 5);
 			this.direction = Direction.getRandomDirection();
 		}
 	}
@@ -871,10 +887,11 @@ class BirdEntity extends RandomLocImageEntity {
 
 class TextEntity extends ColoredEntity {
 
-	constructor(x, y, color, text, font) {
+	constructor(x, y, color, text, font, alignment) {
 		super(x, y, null, null, color);
 		this.text = text;
 		this.font = font;
+		this.alignment = alignment;
 	}
 
 	paint(canvas) {
@@ -882,6 +899,7 @@ class TextEntity extends ColoredEntity {
 
 		canvasCont.fillStyle = this.color;
 		canvasCont.font = this.font;
+		canvasCont.align = this.alignment;
 		canvasCont.fillText(this.text, this.x * canvas.cellWidth, this.y * canvas.cellHeight);
 	}
 
@@ -893,7 +911,7 @@ class TextEntity extends ColoredEntity {
 class BackgroundEntity extends ColoredEntity {
 
 	constructor() {
-		super(0, 0, null, null, "white");
+		super(0, 0, null, null, "#ffea69");
 		this.collidable = false;
 		this.update();
 	}
