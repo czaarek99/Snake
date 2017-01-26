@@ -907,7 +907,7 @@ class CoinEntity extends RandomLocImageEntity {
 class BombEntity extends RandomLocImageEntity {
 
 	constructor(){
-		super(2, 2, SnakeGame.getGame().bombImg)
+		super(4, 4, SnakeGame.getGame().bombImg)
 	}
 }
 
