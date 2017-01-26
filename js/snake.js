@@ -337,11 +337,47 @@ class SnakeGame {
 		Cookies.set("savedValues", this.savedValues, {expires: 365});
 	}
 
+	updateHTML(){
+		$("#scoreText").innerHTML = "Score: " + this.score;
+		$("#coinsText").innerHTML = "Coins: " + this.coins;
+
+		//TODO: Fix this counting in time while the game is paused
+		let gameLength = new Date() - this.startDate;
+		let secondsSinceStart = Math.floor(gameLength / 1000);
+
+		let minutes = Math.floor(secondsSinceStart / 60);
+		let seconds = secondsSinceStart % 60;
+
+		if(seconds > 0 || minutes > 0){
+			let minutesText;
+			if(minutes == 0){
+				minutesText = "";
+			} else if(minutes == 1){
+				minutesText = "1 minute ";
+			} else {
+				minutesText = minutes + " minutes "
+			}
+
+			let secondsText;
+			if(seconds == 0){
+				secondsText = "";
+			} else if(seconds == 1){
+				secondsText = "1 second";
+			} else {
+				secondsText = seconds + " seconds";
+			}
+
+			$("#timeText").innerHTML = "Time elapsed: " + minutesText + secondsText;
+		}
+	}
+
 	run() {
 		let snakeCanvas = this.snakeCanvas;
 		snakeCanvas.updateCanvasSize();
 
 		if(this.gameState != GameState.STOPPED){
+			this.updateHTML();
+
 			this.ticks++;
 
 			let update = (value) => {
@@ -379,9 +415,6 @@ class SnakeGame {
 					})
 				});
 
-				$("#scoreText").innerHTML = "Score: " + this.score;
-				$("#coinsText").innerHTML = "Coins: " + this.coins;
-
 				this.scoreText.text = this.score;
 
 				//Painting
@@ -393,35 +426,6 @@ class SnakeGame {
 				entities.forEach(entity => {
 					snakeCanvas.paintEntity(entity);
 				});
-
-				//TODO: Fix this counting in time while the game is paused
-				let gameLength = new Date() - this.startDate;
-				let secondsSinceStart = Math.floor(gameLength / 1000);
-
-				let minutes = Math.floor(secondsSinceStart / 60);
-				let seconds = secondsSinceStart % 60;
-
-				if(seconds > 0 || minutes > 0){
-					let minutesText;
-					if(minutes == 0){
-						minutesText = "";
-					} else if(minutes == 1){
-						minutesText = "1 minute ";
-					} else {
-						minutesText = minutes + " minutes "
-					}
-
-					let secondsText;
-					if(seconds == 0){
-						secondsText = "";
-					} else if(seconds == 1){
-						secondsText = "1 second";
-					} else {
-						secondsText = seconds + " seconds";
-					}
-
-					$("#timeText").innerHTML = "Time elapsed: " + minutesText + secondsText;
-				}
 
 			} else {
 				canvasCont.fillStyle = "black";
