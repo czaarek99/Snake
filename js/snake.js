@@ -128,6 +128,7 @@ class SnakeGame {
 			this.savedValues = Cookies.getJSON("savedValues");
 		}
 
+		this.bombs = 0;
 		this.ticks = 0;
 		this.score = 0;
 		this.coins = 0;
@@ -138,16 +139,20 @@ class SnakeGame {
 
 		this.appleImg = loadImage("apple.png");
 		this.coinImg = loadImage("coin.png");
+		this.bombImg = loadImage("bomb.png");
 		this.snakeHeadImg = loadImage("parts/head.png");
 		this.snakeCurveImg = loadImage("parts/curve.png");
 		this.snakeStraightImg = loadImage("parts/straight.png");
 		this.snakeTailImg = loadImage("parts/tail.png");
-		this.birdImg = loadImage("bird.png");
 
+		this.upgrades.set("coinshrink", new Upgrade("Shrinking Coins", loadImage("coincut.png"), 100, null, null));
 		this.upgrades.set("phase", new Upgrade("Phasing Snake", this.snakeHeadImg, 100, null, null));
-		this.upgrades.set("slowsnake", new Upgrade("Slow Snake", loadImage("snail.png"), 50, null, null));
 		this.upgrades.set("doublecoin", new Upgrade("Double Coins", loadImage("doublecoin.png"), 30, null, null));
-		this.upgrades.set("slowgrow", new Upgrade("Slow Growth", loadImage("halfapple.png"), 25, null, null));
+		this.upgrades.set("slowgrow", new Upgrade("Slow Growth", loadImage("halfapple.png"), 25, () => {
+			this.currentSnake.snakeGrowthOnFeed /= 2;
+		}, null));
+
+		this.upgrades.set("doublescore", new Upgrade("Double Score", loadImage("score.png"), 15, null, null));
 
 		this.purchases.set("cut", new Purchase("Cut in Half", loadImage("scissors.png"), 10, () => {
 			let length = this.currentSnake.snakeParts.length;
@@ -162,7 +167,7 @@ class SnakeGame {
 
 			purchase.disabled = length <= 10;
 		}));
-		
+
 		this.purchases.set("suicide", new Purchase("Suicide", loadImage("snare.ico"), 5, () => {
 			this.stopGame();
 		}, null));
@@ -279,13 +284,13 @@ class SnakeGame {
 		this.updateNewGameOverlay(false);
         this.gameState = GameState.RUNNING;
 
-		this.currentSnake = new Snake();
+		this.currentSnake = new PlayerSnake();
 		this.addEntity(this.currentSnake);
 		this.addEntity(new FoodEntity());
 		this.addEntity(new CoinEntity());
-		this.addEntity(new BirdEntity());
 
-		this.coins = 50;
+		this.coins = 250;
+		this.startDate = new Date();
 	}
 
 	stopGame(){
@@ -303,6 +308,7 @@ class SnakeGame {
 
         this.score = 0;
         this.ticks = 0;
+		this.bombs = 0;
 
         this.upgrades.forEach((value) => {
             value.purchased = false;
@@ -332,66 +338,100 @@ class SnakeGame {
 	}
 
 	run() {
-		this.ticks++;
-
-		let update = (value) => {
-			value.update();
-		};
-
-		this.upgrades.forEach(update);
-		this.purchases.forEach(update);
-
 		let snakeCanvas = this.snakeCanvas;
 		snakeCanvas.updateCanvasSize();
 
-		let minWindowCells = 20;
-		let canvasCont = snakeCanvas.canvasContext;
-		if(this.gameState == GameState.PAUSED){
-			canvasCont.fillStyle = "black";
-			canvasCont.font = "20px Arial";
-			canvasCont.textAlign = "center";
-			canvasCont.fillText("Paused!", snakeCanvas.getRealWidth() / 2, snakeCanvas.getRealHeight() / 2);
-		} else if (snakeCanvas.getScaledCellHeight() > minWindowCells && snakeCanvas.getScaledCellWidth() > minWindowCells) {
-			let entities = this.entities;
+		if(this.gameState != GameState.STOPPED){
+			this.ticks++;
 
-			//Update living entities, remove dead ones
-			entities.forEach(entity => {
-				if (entity.dead) {
-					entities.delete(entity);
-				} else {
-					entity.update();
-				}
-			});
+			let update = (value) => {
+				value.update();
+			};
 
-			//Check for collisions, avoid checking self collisions
-			entities.forEach(entity1 => {
-				entities.forEach(entity2 => {
-					if (entity1 != entity2 && entity1.collidable && entity2.collidable && entity1.collidesWith(entity2)) {
-						entity1.onCollide(entity2);
+			this.upgrades.forEach(update);
+			this.purchases.forEach(update);
+
+			let minWindowCells = 20;
+			let canvasCont = snakeCanvas.canvasContext;
+			if(this.gameState == GameState.PAUSED){
+				canvasCont.fillStyle = "black";
+				canvasCont.font = "20px Arial";
+				canvasCont.textAlign = "center";
+				canvasCont.fillText("Paused!", snakeCanvas.getRealWidth() / 2, snakeCanvas.getRealHeight() / 2);
+			} else if (snakeCanvas.getScaledCellHeight() > minWindowCells && snakeCanvas.getScaledCellWidth() > minWindowCells) {
+				let entities = this.entities;
+
+				//Update living entities, remove dead ones
+				entities.forEach(entity => {
+					if (entity.dead) {
+						entities.delete(entity);
+					} else {
+						entity.update();
 					}
-				})
-			});
+				});
 
-			$("#scoreText").innerHTML = "Score: " + this.score;
-			$("#coinsText").innerHTML = "Coins: " + this.coins;
+				//Check for collisions, avoid checking self collisions
+				entities.forEach(entity1 => {
+					entities.forEach(entity2 => {
+						if (entity1 != entity2 && entity1.collidable && entity2.collidable && entity1.collidesWith(entity2)) {
+							entity1.onCollide(entity2);
+						}
+					})
+				});
 
-			this.scoreText.text = this.score;
+				$("#scoreText").innerHTML = "Score: " + this.score;
+				$("#coinsText").innerHTML = "Coins: " + this.coins;
 
-			//Painting
-			snakeCanvas.scaleNext();
+				this.scoreText.text = this.score;
 
-			this.scoreText.x = this.snakeCanvas.getScaledCellWidth() / 2;
-			this.scoreText.y = this.snakeCanvas.getScaledCellHeight() / 2;
+				//Painting
+				snakeCanvas.scaleNext();
 
-			entities.forEach(entity => {
-				snakeCanvas.paintEntity(entity);
-			});
-		} else {
-			canvasCont.fillStyle = "black";
-			canvasCont.font = "30px Arial";
-			canvasCont.textAlign = "start";
-			canvasCont.fillText("Window too small", 0, 30);
+				this.scoreText.x = this.snakeCanvas.getScaledCellWidth() / 2;
+				this.scoreText.y = this.snakeCanvas.getScaledCellHeight() / 2;
+
+				entities.forEach(entity => {
+					snakeCanvas.paintEntity(entity);
+				});
+
+				//TODO: Fix this counting in time while the game is paused
+				let gameLength = new Date() - this.startDate;
+				let secondsSinceStart = Math.floor(gameLength / 1000);
+
+				let minutes = Math.floor(secondsSinceStart / 60);
+				let seconds = secondsSinceStart % 60;
+
+				if(seconds > 0 || minutes > 0){
+					let minutesText;
+					if(minutes == 0){
+						minutesText = "";
+					} else if(minutes == 1){
+						minutesText = "1 minute ";
+					} else {
+						minutesText = minutes + " minutes "
+					}
+
+					let secondsText;
+					if(seconds == 0){
+						secondsText = "";
+					} else if(seconds == 1){
+						secondsText = "1 second";
+					} else {
+						secondsText = seconds + " seconds";
+					}
+
+					$("#timeText").innerHTML = "Time elapsed: " + minutesText + secondsText;
+				}
+
+			} else {
+				canvasCont.fillStyle = "black";
+				canvasCont.font = "30px Arial";
+				canvasCont.textAlign = "start";
+				canvasCont.fillText("Window too small", 0, 30);
+			}
 		}
+
+
 	}
 
 }
@@ -504,7 +544,6 @@ class Entity extends Updateable {
 
 	kill() {
 		this.dead = true;
-		SnakeGame.getGame().stopGame();
 	}
 
 	paint(canvas) {
@@ -571,8 +610,6 @@ class Snake extends Entity {
 		return this.getHead().collidesWith(item);
 	}
 
-	//TODO: Fix this algorithm to allow smoother animation at lower speeds
-	//(for example when using slow snake)
 	moveForward() {
 		let snakeButt = this.popButt();
 		let snakeHead = this.getHead();
@@ -693,52 +730,70 @@ class Snake extends Entity {
 
 	update() {
 		let game = SnakeGame.getGame();
-		let hasSlowUpgrade = game.hasUpgrade("slowsnake");
-
-		if (!hasSlowUpgrade || game.ticks % 2 == 0 && hasSlowUpgrade) {
-			this.moveForward();
-		}
+		this.moveForward();
 
 		let head = this.getHead();
-		if (!game.hasUpgrade("phase")) {
-			this.snakeParts.forEach(part => {
-				//We avoid checking self collisions for most items
-				//The snake needs to do that though
-				if (part != head && this.headCollidesWith(part)) {
-					this.onCollide(this);
-				}
-			});
-		}
+		this.snakeParts.forEach(part => {
+			//We avoid checking self collisions for most items
+			//The snake needs to do that though
+			if (part != head && this.headCollidesWith(part)) {
+				this.onCollide(this);
+			}
+		});
 
 		if (!head.isInside(game.background)) {
-			game.stopGame();
+			this.kill();
 		}
 	}
 
 	onCollide(otherEntity) {
-		let game = SnakeGame.getGame();
-		if(otherEntity instanceof Snake){
+		if(otherEntity instanceof Snake || otherEntity instanceof BombEntity){
 			this.kill();
+		} else if(otherEntity instanceof FoodEntity){
+			otherEntity.kill();
+			this.append(this.snakeGrowthOnFeed);
+		} else if(otherEntity instanceof CoinEntity){
+			otherEntity.kill();
 		}
 
+
+	}
+}
+
+//TODO: Create an AI
+class ComputerSnake {
+
+	update(){
+
+	}
+
+}
+
+class PlayerSnake extends Snake {
+
+	onCollide(otherEntity){
+		let game = SnakeGame.getGame();
+		if(otherEntity instanceof Snake && game.hasUpgrade("phase")) {
+			return;
+		}
+
+		super.onCollide(otherEntity);
 		if (otherEntity instanceof FoodEntity) {
-			//TODO: Fix these parts being draw wrong until expanded
-			if (game.hasUpgrade("slowgrow")) {
-				this.append(this.snakeGrowthOnFeed / 2);
+			if(game.hasUpgrade("doublescore")){
+				game.score += 2;
 			} else {
-				this.append(this.snakeGrowthOnFeed);
+				game.score++;
 			}
 
-			otherEntity.kill();
 			game.addEntity(new FoodEntity());
-			game.score += 1;
-
 			if (getRandomInt(0, 1) > 0) {
 				game.addEntity(new CoinEntity());
 			}
 
 		} else if (otherEntity instanceof CoinEntity) {
-			otherEntity.kill();
+			if(game.hasUpgrade("coinshrink")){
+				this.popButt();
+			}
 
 			if (game.hasUpgrade("doublecoin")) {
 				game.coins += 2;
@@ -746,15 +801,16 @@ class Snake extends Entity {
 				game.coins++;
 			}
 
-
+			if(game.bombs < 10){
+				game.addEntity(new BombEntity());
+			}
 		}
+
 	}
-}
 
-class PlayerSnake extends Snake {
-
-	constructor(){
-
+	kill(){
+		super.kill();
+		SnakeGame.getGame().stopGame();
 	}
 
 }
@@ -846,42 +902,12 @@ class CoinEntity extends RandomLocImageEntity {
 		}
 	}
 
-
 }
 
-class BirdEntity extends RandomLocImageEntity {
+class BombEntity extends RandomLocImageEntity {
 
-	constructor() {
-		super(4, 4, SnakeGame.getGame().birdImg);
-		this.direction = Direction.LEFT;
-		this.changeDirectionDate = getRandFutureDate(5, 10);
-	}
-
-	update(){
-		this.moveForward();
-
-		if(new Date().getTime() >= this.changeDirectionDate.getTime()){
-			this.changeDirectionDate = getRandFutureDate(3, 5);
-			this.direction = Direction.getRandomDirection();
-		}
-	}
-
-	moveForward(){
-		let prevX = this.x;
-		let prevY = this.y;
-
-		let retry = true;
-		while(retry){
-			super.moveForward(this.direction);
-
-			if(this.isInside(SnakeGame.getGame().background)){
-				retry = false;
-			} else {
-				this.x = prevX;
-				this.y = prevY;
-				this.direction = Direction.getRandomDirection();
-			}
-		}
+	constructor(){
+		super(2, 2, SnakeGame.getGame().bombImg)
 	}
 }
 
