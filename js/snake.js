@@ -111,8 +111,7 @@ class SnakeGame {
 
 	initialize() {
 		this.gameState = GameState.STOPPED;
-
-		this.minCanvasSize = 200;
+		
 		this.menuWidth = 300;
 		$("#newGameOverlay").addEventListener("click", () => {
 			this.startNewGame();
@@ -208,7 +207,6 @@ class SnakeGame {
 		canvasEl.addEventListener("mouseenter", () => {
 			if(this.gameState == GameState.PAUSED) {
 				this.gameState = GameState.RUNNING;
-                canvasEl.focus();
 			}
 
 		});
@@ -430,6 +428,7 @@ class SnakeGame {
 				this.scoreText.text = this.score;
 
 				//Painting
+				snakeCanvas.canvasEl.focus();
 				snakeCanvas.scaleNext();
 
 				this.scoreText.x = this.snakeCanvas.getScaledCellWidth() / 2;
@@ -598,6 +597,7 @@ class Snake extends Entity {
 		super(null, null, null, null);
 		this.SNAKE_START_LENGT = 5;
 		this.snakeGrowthOnFeed = 4;
+		this.growthLeft = 0;
 
 		this.snakeDirection = Direction.RIGHT;
 		this.snakeParts = [];
@@ -625,12 +625,8 @@ class Snake extends Entity {
 		return this.snakeParts.pop();
 	}
 
-	append(parts = 1) {
-		let butt = this.getButt();
-
-		for (let i = 0; i < parts; i++) {
-			this.snakeParts.push(new SnakePartEntity(butt.x, butt.y, SnakeGame.getGame().snakeStraightImg));
-		}
+	grow(parts = 1) {
+		this.growthLeft += parts;
 	}
 
 	headCollidesWith(item) {
@@ -638,26 +634,51 @@ class Snake extends Entity {
 	}
 
 	moveForward() {
-		let snakeButt = this.popButt();
 		let snakeHead = this.getHead();
 		let direction = this.snakeDirection;
 
-		if (direction == Direction.LEFT) {
-			snakeButt.x = snakeHead.x - 1;
-			snakeButt.y = snakeHead.y;
-		} else if (direction == Direction.UP) {
-			snakeButt.y = snakeHead.y - 1;
-			snakeButt.x = snakeHead.x;
-		} else if (direction == Direction.RIGHT) {
-			snakeButt.x = snakeHead.x + 1;
-			snakeButt.y = snakeHead.y;
-		} else if (direction == Direction.DOWN) {
-			snakeButt.y = snakeHead.y + 1;
-			snakeButt.x = snakeHead.x;
-		}
+		/*
+		If the snake needs to grow then append a new part in front of it
+		Otherwise move the butt to the front and making it the new head
+		and leave updating the image to the paint() function
+		 */
+		if(this.growthLeft > 0){
+			let newPart = new SnakePartEntity(snakeHead.x, snakeHead.y);
 
-		//Move the butt in front of the snake, making it the new head
-		this.snakeParts.unshift(snakeButt);
+			if (direction == Direction.LEFT) {
+				newPart.x--;
+			} else if (direction == Direction.UP) {
+				newPart.y--;
+			} else if (direction == Direction.RIGHT) {
+				newPart.x++;
+			} else if (direction == Direction.DOWN) {
+				newPart.y++;
+			}
+
+			this.growthLeft--;
+			this.snakeParts.unshift(newPart);
+
+		} else {
+			let snakeButt = this.popButt();
+
+
+			if (direction == Direction.LEFT) {
+				snakeButt.x = snakeHead.x - 1;
+				snakeButt.y = snakeHead.y;
+			} else if (direction == Direction.UP) {
+				snakeButt.y = snakeHead.y - 1;
+				snakeButt.x = snakeHead.x;
+			} else if (direction == Direction.RIGHT) {
+				snakeButt.x = snakeHead.x + 1;
+				snakeButt.y = snakeHead.y;
+			} else if (direction == Direction.DOWN) {
+				snakeButt.y = snakeHead.y + 1;
+				snakeButt.x = snakeHead.x;
+			}
+
+			//Move the butt in front of the snake, making it the new head
+			this.snakeParts.unshift(snakeButt);
+		}
 	}
 
 	collidesWith(otherEntity) {
@@ -778,7 +799,7 @@ class Snake extends Entity {
 			this.kill();
 		} else if(otherEntity instanceof FoodEntity){
 			otherEntity.kill();
-			this.append(this.snakeGrowthOnFeed);
+			this.grow(this.snakeGrowthOnFeed);
 		} else if(otherEntity instanceof CoinEntity){
 			otherEntity.kill();
 		}
