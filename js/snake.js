@@ -4,6 +4,7 @@
  *
  * */
 
+const TICKRATE = 20;
 document.addEventListener("DOMContentLoaded", () => {
 	let game = SnakeGame.getGame();
 
@@ -14,7 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	//Run at 20 ticks
 	setInterval(() => {
 		game.run();
-	}, 50);
+	}, 1000 / TICKRATE);
 
 	setInterval(() => {
 		game.save();
@@ -29,12 +30,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function getRandomInt(min, max) {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function getRandFutureDate(minSeconds, maxSeconds){
-	let date = new Date();
-	date.setSeconds(date.getSeconds() + getRandomInt(minSeconds, maxSeconds));
-	return date;
 }
 
 function loadImage(src) {
@@ -117,13 +112,19 @@ class SnakeGame {
 	initialize() {
 		this.gameState = GameState.STOPPED;
 
+		this.minCanvasSize = 200;
 		this.menuWidth = 300;
 		$("#newGameOverlay").addEventListener("click", () => {
 			this.startNewGame();
 		});
 
 		if(Cookies.get("savedValues") === undefined){
-			this.savedValues = {highscore: 0};
+			this.savedValues = {
+				highscore: 0,
+				longestLifeTicks: 0
+			};
+
+			this.save();
 		} else {
 			this.savedValues = Cookies.getJSON("savedValues");
 		}
@@ -211,10 +212,11 @@ class SnakeGame {
 			}
 
 		});
+
+		this.updateNewGameOverlay(true);
 	}
 
 	generateHTML() {
-		$("#highscoreText").innerText = "Highscore: " + this.savedValues.highscore;
         $("#menuContainer").style.width = this.menuWidth + "px";
 
 		let generatePurchasesFunc = (value, key) => {
@@ -235,6 +237,43 @@ class SnakeGame {
 		}
 
 		return SnakeGame.game;
+	}
+
+	updateHTML(){
+		$("#scoreText").innerHTML = "Score: " + this.score;
+		$("#coinsText").innerHTML = "Coins: " + this.coins;
+		$("#timeText").innerHTML = "Time elapsed: " + this.convertTicksToString();
+	}
+
+	convertTicksToString(ticks = this.ticks){
+		let secondsSinceStart = Math.floor(ticks / TICKRATE);
+
+		let minutes = Math.floor(secondsSinceStart / 60);
+		let seconds = secondsSinceStart % 60;
+
+		if(seconds > 0 || minutes > 0){
+			let minutesText;
+			if(minutes == 0){
+				minutesText = "";
+			} else if(minutes == 1){
+				minutesText = "1 minute ";
+			} else {
+				minutesText = minutes + " minutes "
+			}
+
+			let secondsText;
+			if(seconds == 0){
+				secondsText = "";
+			} else if(seconds == 1){
+				secondsText = "1 second";
+			} else {
+				secondsText = seconds + " seconds";
+			}
+
+			return minutesText + secondsText;
+		} else {
+			return "0 seconds";
+		}
 	}
 
 	addEntity(entity) {
@@ -289,8 +328,11 @@ class SnakeGame {
 		this.addEntity(new FoodEntity());
 		this.addEntity(new CoinEntity());
 
+		this.score = 0;
+		this.ticks = 0;
+		this.bombs = 0;
 		this.coins = 250;
-		this.startDate = new Date();
+		this.nextBombTicks = this.getRandFutureTicks(5, 10);
 	}
 
 	stopGame(){
@@ -306,9 +348,10 @@ class SnakeGame {
 			this.savedValues.highscore = this.score;
 		}
 
-        this.score = 0;
-        this.ticks = 0;
-		this.bombs = 0;
+		let longestLifeTicks = this.savedValues.longestLifeTicks;
+		if(this.ticks > longestLifeTicks){
+			this.savedValues.longestLifeTicks = this.ticks;
+		}
 
         this.upgrades.forEach((value) => {
             value.purchased = false;
@@ -322,11 +365,16 @@ class SnakeGame {
 		let overlayElement = $("#newGameOverlay");
 		if(show){
 			$("#highscoreText").innerText = "Highscore: " + this.savedValues.highscore;
+			$("#lifeText").innerText = "Longest life: " + this.convertTicksToString(this.savedValues.longestLifeTicks);
 			overlayElement.style.display = "flex";
 		} else {
 			overlayElement.style.display = "none";
 		}
 
+	}
+
+	getRandFutureTicks(minSeconds, maxSeconds){
+		return this.ticks + getRandomInt(minSeconds, maxSeconds) * TICKRATE;
 	}
 
 	hasUpgrade(id) {
@@ -337,48 +385,12 @@ class SnakeGame {
 		Cookies.set("savedValues", this.savedValues, {expires: 365});
 	}
 
-	updateHTML(){
-		$("#scoreText").innerHTML = "Score: " + this.score;
-		$("#coinsText").innerHTML = "Coins: " + this.coins;
-
-		//TODO: Fix this counting in time while the game is paused
-		let gameLength = new Date() - this.startDate;
-		let secondsSinceStart = Math.floor(gameLength / 1000);
-
-		let minutes = Math.floor(secondsSinceStart / 60);
-		let seconds = secondsSinceStart % 60;
-
-		if(seconds > 0 || minutes > 0){
-			let minutesText;
-			if(minutes == 0){
-				minutesText = "";
-			} else if(minutes == 1){
-				minutesText = "1 minute ";
-			} else {
-				minutesText = minutes + " minutes "
-			}
-
-			let secondsText;
-			if(seconds == 0){
-				secondsText = "";
-			} else if(seconds == 1){
-				secondsText = "1 second";
-			} else {
-				secondsText = seconds + " seconds";
-			}
-
-			$("#timeText").innerHTML = "Time elapsed: " + minutesText + secondsText;
-		}
-	}
-
 	run() {
 		let snakeCanvas = this.snakeCanvas;
 		snakeCanvas.updateCanvasSize();
 
 		if(this.gameState != GameState.STOPPED){
 			this.updateHTML();
-
-			this.ticks++;
 
 			let update = (value) => {
 				value.update();
@@ -387,14 +399,14 @@ class SnakeGame {
 			this.upgrades.forEach(update);
 			this.purchases.forEach(update);
 
-			let minWindowCells = 20;
 			let canvasCont = snakeCanvas.canvasContext;
 			if(this.gameState == GameState.PAUSED){
 				canvasCont.fillStyle = "black";
 				canvasCont.font = "20px Arial";
 				canvasCont.textAlign = "center";
 				canvasCont.fillText("Paused!", snakeCanvas.getRealWidth() / 2, snakeCanvas.getRealHeight() / 2);
-			} else if (snakeCanvas.getScaledCellHeight() > minWindowCells && snakeCanvas.getScaledCellWidth() > minWindowCells) {
+			} else if (snakeCanvas.isBigEnough()) {
+				this.ticks++;
 				let entities = this.entities;
 
 				//Update living entities, remove dead ones
@@ -426,6 +438,12 @@ class SnakeGame {
 				entities.forEach(entity => {
 					snakeCanvas.paintEntity(entity);
 				});
+
+				if(this.bombs < 10 && this.nextBombTicks <= this.ticks){
+					this.addEntity(new BombEntity());
+					this.bombs++;
+					this.nextBombTicks = this.getRandFutureTicks(10, 30);
+				}
 
 			} else {
 				canvasCont.fillStyle = "black";
@@ -486,7 +504,7 @@ class SnakeCanvas {
 		let minPixels = 1900;
 		let maxPixels = 2100;
 
-		while(true){
+		while(this.isBigEnough()){
 			let pixels = this.getScaledCellWidth() * this.getScaledCellHeight();
 			if(pixels > maxPixels){
 				this.scale += 0.03;
@@ -506,6 +524,11 @@ class SnakeCanvas {
 
 	getRealHeight() {
 		return this.canvasEl.height;
+	}
+
+	isBigEnough(){
+		let minCanvasSize = 200;
+		return !(this.getRealHeight() < minCanvasSize || this.getRealWidth() < minCanvasSize);
 	}
 }
 
@@ -804,10 +827,6 @@ class PlayerSnake extends Snake {
 			} else {
 				game.coins++;
 			}
-
-			if(game.bombs < 10){
-				game.addEntity(new BombEntity());
-			}
 		}
 
 	}
@@ -897,11 +916,12 @@ class CoinEntity extends RandomLocImageEntity {
 
 	constructor() {
 		super(3, 3, SnakeGame.getGame().coinImg);
-        this.deathDate = getRandFutureDate(2, 6);
+        this.deathTicks = SnakeGame.getGame().getRandFutureTicks(2, 6);
 	}
 
 	update() {
-		if(new Date().getTime() >= this.deathDate.getTime()){
+		let game = SnakeGame.getGame();
+		if(game.ticks >= this.deathTicks){
 			this.kill();
 		}
 	}
