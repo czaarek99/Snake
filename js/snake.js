@@ -182,11 +182,11 @@ class SnakeGame {
 		this.generateHTML();
 
 		this.snakeCanvas = new SnakeCanvas();
+		//Don't add this to entity list, handle it as a special case
 		this.background = new BackgroundEntity();
 		this.scoreText = new TextEntity(0, 0, "#afafaf", "0", "Arial 20px", "center");
 
 		this.entities = new Set();
-		this.addEntity(this.background);
 		this.addEntity(this.scoreText);
 
 		this.keycodeDirectionMap = {};
@@ -240,6 +240,7 @@ class SnakeGame {
 	updateHTML(){
 		$("#scoreText").innerHTML = "Score: " + this.score;
 		$("#coinsText").innerHTML = "Coins: " + this.coins;
+		$("#bombsText").innerHTML = "Bombs: " + this.bombs;
 		$("#timeText").innerHTML = "Time elapsed: " + this.convertTicksToString();
 	}
 
@@ -386,6 +387,14 @@ class SnakeGame {
 	run() {
 		let snakeCanvas = this.snakeCanvas;
 		snakeCanvas.updateCanvasSize();
+		snakeCanvas.scaleNext();
+
+		/*
+		The background doesn't get added to the entity list as it is a special case
+		it has to be painted and updated even when the game is not running
+		 */
+		this.background.update();
+		snakeCanvas.paintEntity(this.background);
 
 		if(this.gameState != GameState.STOPPED){
 			this.updateHTML();
@@ -425,12 +434,8 @@ class SnakeGame {
 					})
 				});
 
-				this.scoreText.text = this.score;
-
 				//Painting
-				snakeCanvas.canvasEl.focus();
-				snakeCanvas.scaleNext();
-
+				this.scoreText.text = this.score;
 				this.scoreText.x = this.snakeCanvas.getScaledCellWidth() / 2;
 				this.scoreText.y = this.snakeCanvas.getScaledCellHeight() / 2;
 
@@ -451,8 +456,6 @@ class SnakeGame {
 				canvasCont.fillText("Window too small", 0, 30);
 			}
 		}
-
-
 	}
 
 }
@@ -460,8 +463,7 @@ class SnakeGame {
 class SnakeCanvas {
 
 	constructor() {
-		this.cellWidth = 5;
-		this.cellHeight = 5;
+		this.cellSize = 5;
 
 		this.canvasEl = $("#snakeCanvas");
 		this.canvasContext = this.canvasEl.getContext("2d");
@@ -475,11 +477,11 @@ class SnakeCanvas {
 	}
 
 	getScaledCellWidth() {
-		return this.getScaledPixelWidth() / this.cellWidth;
+		return this.getScaledPixelWidth() / this.cellSize;
 	}
 
 	getScaledCellHeight() {
-		return this.getScaledPixelHeight() / this.cellHeight;
+		return this.getScaledPixelHeight() / this.cellSize;
 	}
 
 	getScaledPixelHeight() {
@@ -528,6 +530,15 @@ class SnakeCanvas {
 	isBigEnough(){
 		let minCanvasSize = 200;
 		return !(this.getRealHeight() < minCanvasSize || this.getRealWidth() < minCanvasSize);
+	}
+
+	/**
+	 * Converts a unit from cell size to pixel size
+	 * @param size The size to convert
+	 * @returns {number} The pixel size
+	 */
+	toPixelUnit(size){
+		return size * this.cellSize;
 	}
 }
 
@@ -872,17 +883,22 @@ class ImageEntity extends Entity {
 		let context = canvas.canvasContext;
 		let rotate = this.rotation != 0;
 
+		let pixelWidth = canvas.toPixelUnit(this.width);
+		let pixelHeight = canvas.toPixelUnit(this.height);
+		let pixelX = canvas.toPixelUnit(this.x);
+		let pixelY = canvas.toPixelUnit(this.y);
+		
 		if (rotate) {
 			context.save();
-
-			context.translate(this.x * canvas.cellWidth + ((canvas.cellWidth * this.width) / 2), this.y * canvas.cellHeight + ((canvas.cellHeight * this.height) / 2));
+			
+			context.translate(pixelX + (pixelWidth / 2), pixelY + (pixelHeight / 2));
 			context.rotate(this.rotation * Math.PI / 180);
-
-			context.drawImage(this.image, (this.width * canvas.cellWidth) / -2, (this.height * canvas.cellHeight) / -2, canvas.cellWidth * this.width, canvas.cellHeight * this.height);
+			
+			context.drawImage(this.image, pixelWidth / -2, pixelHeight / -2, pixelWidth, pixelHeight);
 
 			context.restore();
 		} else {
-			context.drawImage(this.image, this.x * canvas.cellWidth, this.y * canvas.cellHeight, canvas.cellWidth * this.width, canvas.cellHeight * this.height);
+			context.drawImage(this.image, pixelX, pixelY, pixelWidth, pixelHeight);
 		}
 	}
 }
@@ -971,7 +987,7 @@ class TextEntity extends ColoredEntity {
 		canvasCont.fillStyle = this.color;
 		canvasCont.font = this.font;
 		canvasCont.align = this.alignment;
-		canvasCont.fillText(this.text, this.x * canvas.cellWidth, this.y * canvas.cellHeight);
+		canvasCont.fillText(this.text, canvas.toPixelUnit(this.x), canvas.toPixelUnit(this.y));
 	}
 
 	kill() {
@@ -990,9 +1006,9 @@ class BackgroundEntity extends ColoredEntity {
 	paint(canvas) {
 		let context = canvas.canvasContext;
 		context.fillStyle = this.color;
-		context.fillRect(0, 0, canvas.getScaledPixelWidth(), canvas.getScaledPixelHeight());
+		context.fillRect(0, 0, canvas.toPixelUnit(this.width), canvas.toPixelUnit(this.height));
 		context.strokeStyle = "black";
-		context.strokeRect(0, 0, canvas.getScaledPixelWidth(), canvas.getScaledPixelHeight());
+		context.strokeRect(0, 0, canvas.toPixelUnit(this.width), canvas.toPixelUnit(this.height));
 	}
 
 	update() {
