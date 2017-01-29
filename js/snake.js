@@ -86,6 +86,7 @@ Direction.RIGHT = Direction.addDirection(new Direction("right", "left", 180));
 Direction.DOWN = Direction.addDirection(new Direction("down", "up", 270));
 Object.freeze(directions);
 
+const gameStates = new Set();
 class GameState {
 
 	constructor(state){
@@ -96,11 +97,21 @@ class GameState {
 		return this.state;
 	}
 
+	static getAllStates(){
+		return gameStates;
+	}
+
+	static addState(gameState){
+		gameStates.add(gameState);
+		return gameState;
+	}
+
 }
 
-GameState.RUNNING = new GameState("running");
-GameState.PAUSED = new GameState("paused");
-GameState.STOPPED = new GameState("stopped");
+GameState.RUNNING = GameState.addState(new GameState("running"));
+GameState.PAUSED = GameState.addState(new GameState("paused"));
+GameState.STOPPED = GameState.addState(new GameState("stopped"));
+Object.freeze(gameStates);
 
 /**
  *
@@ -181,16 +192,28 @@ class SnakeGame {
 
 		this.generateHTML();
 
-		this.snakeCanvas = new SnakeCanvas();
-		//Don't add this to entity list, handle it as a special case
+		let snCanvas = this.snakeCanvas = new SnakeCanvas();
 		this.background = new BackgroundEntity();
+
+		let centeredTextUpdate = function(){
+			this.x = snCanvas.getScaledWidth() / 2;
+			this.y = snCanvas.getScaledHeight() / 2;
+		};
+
 		this.scoreText = new TextEntity(0, 0, "#afafaf", "0", "Arial 20px", "center");
+		this.scoreText.update = centeredTextUpdate;
+		this.pausedText = new TextEntity(0, 0, "black", "Paused!", "Arial 5px", "center");
+		this.pausedText.update = centeredTextUpdate;
+		//TODO: Maybe a little bit too verbose?
+		this.pausedText.statesToPaintAt = new Set([GameState.PAUSED]);
+		this.pausedText.statesToUpdateAt = new Set([GameState.PAUSED]);
 
 		this.entities = new Set();
+		this.addEntity(this.background);
 		this.addEntity(this.scoreText);
+		this.addEntity(this.pausedText);
 
 		this.keycodeDirectionMap = {};
-
 		//WASD = Arrow Keys = Direction
 		this.keycodeDirectionMap[65] = this.keycodeDirectionMap[37] = Direction.LEFT;
 		this.keycodeDirectionMap[87] = this.keycodeDirectionMap[38] = Direction.UP;
@@ -385,17 +408,6 @@ class SnakeGame {
 	}
 
 	run() {
-		let snakeCanvas = this.snakeCanvas;
-		snakeCanvas.updateCanvasSize();
-		snakeCanvas.scaleNext();
-
-		/*
-		The background doesn't get added to the entity list as it is a special case
-		it has to be painted and updated even when the game is not running
-		 */
-		this.background.update();
-		snakeCanvas.paintEntity(this.background);
-
 		if(this.gameState != GameState.STOPPED){
 			this.updateHTML();
 
@@ -405,25 +417,17 @@ class SnakeGame {
 
 			this.upgrades.forEach(update);
 			this.purchases.forEach(update);
+		}
 
-			let canvasCont = snakeCanvas.canvasContext;
-			if(this.gameState == GameState.PAUSED){
-				canvasCont.fillStyle = "black";
-				canvasCont.font = "20px Arial";
-				canvasCont.textAlign = "center";
-				canvasCont.fillText("Paused!", snakeCanvas.getRealWidth() / 2, snakeCanvas.getRealHeight() / 2);
-			} else if (snakeCanvas.isBigEnough()) {
+		let snCanvas = this.snakeCanvas;
+		let canvasCont = snCanvas.canvasContext;
+		snCanvas.updateCanvasSize();
+		snCanvas.scaleNext();
+
+		let entities = this.entities;
+		if(snCanvas.isBigEnough()){
+			if(this.gameState == GameState.RUNNING){
 				this.ticks++;
-				let entities = this.entities;
-
-				//Update living entities, remove dead ones
-				entities.forEach(entity => {
-					if (entity.dead) {
-						entities.delete(entity);
-					} else {
-						entity.update();
-					}
-				});
 
 				//Check for collisions, avoid checking self collisions
 				entities.forEach(entity1 => {
@@ -434,27 +438,35 @@ class SnakeGame {
 					})
 				});
 
-				//Painting
-				this.scoreText.text = this.score;
-				this.scoreText.x = this.snakeCanvas.getScaledCellWidth() / 2;
-				this.scoreText.y = this.snakeCanvas.getScaledCellHeight() / 2;
-
-				entities.forEach(entity => {
-					snakeCanvas.paintEntity(entity);
-				});
-
 				if(this.bombs < 10 && this.nextBombTicks <= this.ticks){
 					this.addEntity(new BombEntity());
 					this.bombs++;
 					this.nextBombTicks = this.getRandFutureTicks(10, 30);
 				}
-
-			} else {
-				canvasCont.fillStyle = "black";
-				canvasCont.font = "30px Arial";
-				canvasCont.textAlign = "start";
-				canvasCont.fillText("Window too small", 0, 30);
 			}
+
+			//Update living entities, remove dead ones
+			entities.forEach(entity => {
+				if (entity.dead) {
+					entities.delete(entity);
+				} else if(entity.statesToUpdateAt.has(this.gameState)){
+					entity.update();
+				}
+			});
+
+			//Painting
+			this.scoreText.text = this.score;
+			entities.forEach(entity => {
+				if(entity.statesToPaintAt.has(this.gameState)){
+					snCanvas.paintEntity(entity);
+				}
+			});
+
+		} else {
+			canvasCont.fillStyle = "black";
+			canvasCont.font = "10px Arial";
+			canvasCont.textAlign = "start";
+			canvasCont.fillText("Window too small", 0, 30);
 		}
 	}
 
@@ -463,8 +475,6 @@ class SnakeGame {
 class SnakeCanvas {
 
 	constructor() {
-		this.cellSize = 5;
-
 		this.canvasEl = $("#snakeCanvas");
 		this.canvasContext = this.canvasEl.getContext("2d");
 
@@ -474,26 +484,6 @@ class SnakeCanvas {
 
 	paintEntity(entity) {
 		entity.paint(this);
-	}
-
-	getScaledCellWidth() {
-		return this.getScaledPixelWidth() / this.cellSize;
-	}
-
-	getScaledCellHeight() {
-		return this.getScaledPixelHeight() / this.cellSize;
-	}
-
-	getScaledPixelHeight() {
-		return this.canvasEl.height / this.scale;
-	}
-
-	getScaledPixelWidth() {
-		return this.canvasEl.width / this.scale;
-	}
-
-	scaleNext() {
-		this.canvasContext.scale(this.scale, this.scale);
 	}
 
 	updateCanvasSize() {
@@ -506,7 +496,7 @@ class SnakeCanvas {
 		let maxPixels = 2100;
 
 		while(this.isBigEnough()){
-			let pixels = this.getScaledCellWidth() * this.getScaledCellHeight();
+			let pixels = this.getScaledHeight() * this.getScaledWidth();
 			if(pixels > maxPixels){
 				this.scale += 0.03;
 			} else if(pixels < minPixels){
@@ -515,8 +505,18 @@ class SnakeCanvas {
 				break;
 			}
 		}
+	}
 
+	scaleNext() {
+		this.canvasContext.scale(this.scale, this.scale);
+	}
 
+	getScaledHeight() {
+		return this.canvasEl.height / this.scale;
+	}
+
+	getScaledWidth() {
+		return this.canvasEl.width / this.scale;
 	}
 
 	getRealWidth() {
@@ -530,15 +530,6 @@ class SnakeCanvas {
 	isBigEnough(){
 		let minCanvasSize = 200;
 		return !(this.getRealHeight() < minCanvasSize || this.getRealWidth() < minCanvasSize);
-	}
-
-	/**
-	 * Converts a unit from cell size to pixel size
-	 * @param size The size to convert
-	 * @returns {number} The pixel size
-	 */
-	toPixelUnit(size){
-		return size * this.cellSize;
 	}
 }
 
@@ -557,6 +548,9 @@ class Entity extends Updateable {
 		this.height = height;
 		this.dead = false;
 		this.collidable = true;
+
+		this.statesToPaintAt = new Set([GameState.RUNNING]);
+		this.statesToUpdateAt = new Set([GameState.RUNNING]);
 	}
 
 	collidesWith(otherEntity) {
@@ -882,23 +876,18 @@ class ImageEntity extends Entity {
 	paint(canvas) {
 		let context = canvas.canvasContext;
 		let rotate = this.rotation != 0;
-
-		let pixelWidth = canvas.toPixelUnit(this.width);
-		let pixelHeight = canvas.toPixelUnit(this.height);
-		let pixelX = canvas.toPixelUnit(this.x);
-		let pixelY = canvas.toPixelUnit(this.y);
 		
 		if (rotate) {
 			context.save();
 			
-			context.translate(pixelX + (pixelWidth / 2), pixelY + (pixelHeight / 2));
+			context.translate(this.x + (this.width / 2), this.y + (this.height / 2));
 			context.rotate(this.rotation * Math.PI / 180);
 			
-			context.drawImage(this.image, pixelWidth / -2, pixelHeight / -2, pixelWidth, pixelHeight);
+			context.drawImage(this.image, this.width / -2, this.height / -2, this.width, this.height);
 
 			context.restore();
 		} else {
-			context.drawImage(this.image, pixelX, pixelY, pixelWidth, pixelHeight);
+			context.drawImage(this.image, this.x, this.y, this.width, this.height);
 		}
 	}
 }
@@ -986,8 +975,9 @@ class TextEntity extends ColoredEntity {
 
 		canvasCont.fillStyle = this.color;
 		canvasCont.font = this.font;
-		canvasCont.align = this.alignment;
-		canvasCont.fillText(this.text, canvas.toPixelUnit(this.x), canvas.toPixelUnit(this.y));
+		canvasCont.textAlign = this.alignment;
+		canvasCont.textBaseline = "middle";
+		canvasCont.fillText(this.text, this.x, this.y);
 	}
 
 	kill() {
@@ -1000,21 +990,24 @@ class BackgroundEntity extends ColoredEntity {
 	constructor() {
 		super(0, 0, null, null, "#ffea69");
 		this.collidable = false;
+		this.statesToPaintAt = GameState.getAllStates();
+		this.statesToUpdateAt = GameState.getAllStates();
 		this.update();
 	}
 
 	paint(canvas) {
 		let context = canvas.canvasContext;
 		context.fillStyle = this.color;
-		context.fillRect(0, 0, canvas.toPixelUnit(this.width), canvas.toPixelUnit(this.height));
+		context.fillRect(0, 0, this.width, this.height);
 		context.strokeStyle = "black";
-		context.strokeRect(0, 0, canvas.toPixelUnit(this.width), canvas.toPixelUnit(this.height));
+		context.lineWidth = 0.5;
+		context.strokeRect(0, 0, this.width, this.height);
 	}
 
 	update() {
 		let game = SnakeGame.getGame();
-		this.width = game.snakeCanvas.getScaledCellWidth();
-		this.height = game.snakeCanvas.getScaledCellHeight();
+		this.width = game.snakeCanvas.getScaledWidth();
+		this.height = game.snakeCanvas.getScaledHeight();
 	}
 
 	kill() {
