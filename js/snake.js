@@ -139,7 +139,7 @@ class SnakeGame {
 			this.savedValues = Cookies.getJSON("savedValues");
 		}
 
-		this.bombs = 0;
+		this.bombs = [];
 		this.ticks = 0;
 		this.score = 0;
 		this.coins = 0;
@@ -263,8 +263,10 @@ class SnakeGame {
 	updateHTML(){
 		$("#scoreText").innerHTML = "Score: " + this.score;
 		$("#coinsText").innerHTML = "Coins: " + this.coins;
-		$("#bombsText").innerHTML = "Bombs: " + this.bombs;
+		$("#bombsText").innerHTML = "Bombs: " + this.bombs.length;
 		$("#timeText").innerHTML = "Time elapsed: " + this.convertTicksToString();
+
+		$("#bombsTimeText").innerHTML = "Next bomb in: " + this.convertTicksToString(this.nextBombTicks - this.ticks);
 	}
 
 	convertTicksToString(ticks = this.ticks){
@@ -350,9 +352,10 @@ class SnakeGame {
 		this.addEntity(new FoodEntity());
 		this.addEntity(new CoinEntity());
 
+		this.bombs = [];
+
 		this.score = 0;
 		this.ticks = 0;
-		this.bombs = 0;
 		this.coins = 250;
 		this.nextBombTicks = this.getRandFutureTicks(5, 10);
 	}
@@ -438,10 +441,17 @@ class SnakeGame {
 					})
 				});
 
-				if(this.bombs < 10 && this.nextBombTicks <= this.ticks){
-					this.addEntity(new BombEntity());
-					this.bombs++;
+				if(this.nextBombTicks <= this.ticks){
+					let bomb = new BombEntity();
+					this.addEntity(bomb);
+					this.bombs.push(bomb);
 					this.nextBombTicks = this.getRandFutureTicks(10, 30);
+
+					const MAX_BOMBS = 10;
+					if(this.bombs.length > MAX_BOMBS){
+						let oldBomb = this.bombs.shift();
+						oldBomb.kill();
+					}
 				}
 			}
 
