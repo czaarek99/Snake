@@ -15,14 +15,6 @@ body, html {
 	position: relative;
 }
 
-#menuContainer {
-	flex: 10px;
-	overflow: auto;
-	height: 100%;
-	padding-left: 20px;
-	padding-right: 20px;
-}
-
 #newGameOverlay {
 	position: absolute;
 	top: 50%;
@@ -49,6 +41,31 @@ body, html {
 	font-weight: bold;
 }
 
+/* Utilities */
+
+.textCenter {
+	text-align: center;
+}
+
+.noMargin {
+	margin: 0;
+}
+
+.halfWidth {
+	width: 50%;
+}
+
+/* General Menu CSS */
+
+#menuContainer {
+	flex: 10px;
+	overflow: auto;
+	height: 100%;
+	padding-left: 20px;
+	padding-right: 20px;
+}
+
+
 .menuSection {
 
 }
@@ -70,18 +87,18 @@ body, html {
 
 }
 
-/* Utilities */
+/* Stats */
 
-.textCenter {
-	text-align: center;
+.statsTextContainer {
+	display: flex;
 }
 
-.noMargin {
-	margin: 0;
+.statsText {
+	margin: 0 0 0 5px;
 }
 
-.halfWidth {
-	width: 50%;
+.statsTextContainer > .fa {
+	width: 20px;
 }
 
 /* Upgrades & Purchases */
@@ -159,6 +176,17 @@ body, html {
 
 .slider {
 	width: 100%;
+}
+
+/* Menu tooltips */
+
+.tooltip {
+	border: solid 2px black;
+	position: absolute;
+	z-index: 1000;
+	height: 64px;
+	width: 100px;
+	display: none;
 }
 
 

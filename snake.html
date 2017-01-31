@@ -24,6 +24,7 @@
 			</main>
 
 			<aside id="menuContainer">
+				<h1 class="noMargin textCenter">Snake - A simple game</h1>
 
 				<section id="statsContainer" class="menuSection">
 					<div class="menuHeaderContainer">
@@ -31,12 +32,31 @@
 						<i class="fa fa-line-chart menuIcon"></i>
 					</div>
 
-					<!-- TODO: Add icons here? -->
-					<p id="timeText" class="noMargin">Time elapsed: 0</p>
-					<p id="bombsTimeText" class="noMargin">Next bomb in: 0</p>
-					<p id="scoreText" class="noMargin">Score: 0</p>
-					<p id="coinsText" class="noMargin">Coins: 0</p>
-					<p id="bombsText" class="noMargin">Bombs: 0</p>
+					<div class="statsTextContainer">
+						<i class="fa fa-clock-o"></i>
+						<p id="timeText" class="statsText">Time elapsed: 0</p>
+					</div>
+
+					<div class="statsTextContainer">
+						<i class="fa fa-bomb"></i>
+						<p id="bombsTimeText" class="statsText">Next bomb in: 0</p>
+					</div>
+
+					<div class="statsTextContainer">
+						<i class="fa fa-bomb"></i>
+						<p id="bombsText" class="statsText">Bombs: 0</p>
+					</div>
+
+					<div class="statsTextContainer">
+						<i class="fa fa-star"></i>
+						<p id="scoreText" class="statsText">Score: 0</p>
+					</div>
+
+					<div class="statsTextContainer">
+						<i class="fa fa-money"></i>
+						<p id="coinsText" class="statsText">Coins: 0</p>
+					</div>
+
 				</section>
 
 				<section id="upgradesContainer" class="menuSection">
@@ -52,6 +72,7 @@
 						<h1 class="menuHeader">Purchases</h1>
 						<i class="fa fa-usd"></i>
 					</div>
+
 				</section>
 
 				<section id="settingsContainer" class="menuSection">
@@ -61,6 +82,7 @@
 					</div>
 
 					<p>No settings atm</p>
+
 				</section>
 			</aside>
 		</div>

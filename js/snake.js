@@ -1074,6 +1074,10 @@ class Purchase extends Updateable {
 				<img src="${this.icon.src}" class="purchaseIcon">
 				<p class="purchaseText noMargin">${this.displayName}</p>
 				<p class="purchasePrice noMargin">${this.price}</p>
+				
+				<div class="tooltip">
+					<p>Test</p>
+				</div>
 			</div>`
 		);
 
@@ -1082,6 +1086,10 @@ class Purchase extends Updateable {
 		this.containingElement = upgrade;
 		upgrade.addEventListener("click", () => {
 			this.buy();
+		});
+
+		upgrade.addEventListener("mouseover", () => {
+
 		});
 	}
 
