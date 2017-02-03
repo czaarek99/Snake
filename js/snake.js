@@ -156,16 +156,21 @@ class SnakeGame {
 		this.snakeStraightImg = loadImage("parts/straight.png");
 		this.snakeTailImg = loadImage("parts/tail.png");
 
-		this.upgrades.set("coinshrink", new Upgrade("Shrinking Coins", loadImage("coincut.png"), 100, null, null));
-		this.upgrades.set("phase", new Upgrade("Phasing Snake", this.snakeHeadImg, 100, null, null));
-		this.upgrades.set("doublecoin", new Upgrade("Double Coins", loadImage("doublecoin.png"), 30, null, null));
-		this.upgrades.set("slowgrow", new Upgrade("Slow Growth", loadImage("halfapple.png"), 25, () => {
+		let addWithID = (collection, item) => {
+			collection.set(item.id, item);
+		};
+
+		//Upgrades
+		addWithID(this.upgrades, new Upgrade("coinshrink", "Shrinking Coins", "Every time you eat a coin your snake shrinks!", loadImage("coincut.png"), 100, null, null));
+		addWithID(this.upgrades, new Upgrade("phase", "Phasing Snake", "Allows you to phase through yourself without dying.", this.snakeHeadImg, 100, null, null));
+		addWithID(this.upgrades, new Upgrade("doublecoin", "Double Coins", "All coins are worth 2x", loadImage("doublecoin.png"), 30, null, null));
+		addWithID(this.upgrades, new Upgrade("slowgrow", "Slow Growth", "The snake grows slower when you eat an apple", loadImage("halfapple.png"), 25, () => {
 			this.currentSnake.snakeGrowthOnFeed /= 2;
 		}, null));
+		addWithID(this.upgrades, new Upgrade("doublescore", "Double Score", "Every apple increases your score by two instead of one", loadImage("score.png"), 15, null, null));
 
-		this.upgrades.set("doublescore", new Upgrade("Double Score", loadImage("score.png"), 15, null, null));
-
-		this.purchases.set("cut", new Purchase("Cut in Half", loadImage("scissors.png"), 10, () => {
+		//Purchases
+		addWithID(this.purchases, new Purchase("cut", "Cut in Half", "Cuts your snake in half", loadImage("scissors.png"), 10, () => {
 			let length = this.currentSnake.snakeParts.length;
 
 			if (length > 2) {
@@ -178,17 +183,9 @@ class SnakeGame {
 
 			purchase.disabled = length <= 10;
 		}));
-
-		this.purchases.set("suicide", new Purchase("Suicide", loadImage("snare.ico"), 5, () => {
+		addWithID(this.purchases, new Purchase("suicide", "Suicide", "The easy way out. End it right here right now.", loadImage("snare.ico"), 5, () => {
 			this.stopGame();
 		}, null));
-
-		//TODO: When we actually need settings make this work
-		let addSetting = (setting) => {
-			this.settings.set(setting.name, setting);
-		};
-
-		addSetting(new SliderSetting("scale"));
 
 		this.generateHTML();
 
@@ -240,11 +237,11 @@ class SnakeGame {
 	generateHTML() {
         $("#menuContainer").style.width = this.menuWidth + "px";
 
-		let generatePurchasesFunc = (value, key) => {
+		let generatePurchasesFunc = (value) => {
 			let container = value instanceof Upgrade ?
 				$("#upgradesContainer") : $("#purchasesContainer");
 
-			value.generate(key, container);
+			value.generate(container);
 		};
 
 		this.upgrades.forEach(generatePurchasesFunc);
@@ -889,7 +886,7 @@ class ImageEntity extends Entity {
 		
 		if (rotate) {
 			context.save();
-			
+
 			context.translate(this.x + (this.width / 2), this.y + (this.height / 2));
 			context.rotate(this.rotation * Math.PI / 180);
 			
@@ -1026,9 +1023,11 @@ class BackgroundEntity extends ColoredEntity {
 
 class Purchase extends Updateable {
 
-	constructor(displayName, icon, price, onPurchase, onUpdate) {
+	constructor(id, displayName, description, icon, price, onPurchase, onUpdate) {
 		super();
+		this.id = id;
 		this.displayName = displayName;
+		this.description = description;
 		this.icon = icon;
 		this.price = price;
 		this.onPurchase = onPurchase;
@@ -1066,8 +1065,9 @@ class Purchase extends Updateable {
 		}
 	}
 
-	generate(id, container){
-		let fullId = "InternalID_" + id;
+	generate(container){
+		let fullId = "InternalID_" + this.id;
+		let toolTipID = "ToolTipID_" + this.id;
 
 		container.insertAdjacentHTML("beforeend",
 			`<div class="purchase" id="${fullId}">
@@ -1075,8 +1075,9 @@ class Purchase extends Updateable {
 				<p class="purchaseText noMargin">${this.displayName}</p>
 				<p class="purchasePrice noMargin">${this.price}</p>
 				
-				<div class="tooltip">
-					<p>Test</p>
+				<div class="tooltip" id="${toolTipID}">
+					<img src="${this.icon.src}" class="tooltipImg">
+					<p>${this.description}</p>
 				</div>
 			</div>`
 		);
@@ -1088,8 +1089,17 @@ class Purchase extends Updateable {
 			this.buy();
 		});
 
+		let tooltip = document.getElementById(toolTipID);
 		upgrade.addEventListener("mouseover", () => {
+			tooltip.style.display = "flex";
+		});
 
+		upgrade.addEventListener("mouseout", () => {
+			tooltip.style.display = "none";
+		});
+
+		upgrade.addEventListener("mousemove", (event) => {
+			tooltip.style.top = (event.clientY - tooltip.clientHeight / 2) + "px";
 		});
 	}
 
@@ -1097,8 +1107,8 @@ class Purchase extends Updateable {
 
 class Upgrade extends Purchase {
 
-	constructor(displayName, icon, price, onPurchase, onUpdate) {
-		super(displayName, icon, price, onPurchase, onUpdate);
+	constructor(id, displayName, description, icon, price, onPurchase, onUpdate) {
+		super(id, displayName, description, icon, price, onPurchase, onUpdate);
 
 		this.purchased = false;
 	}

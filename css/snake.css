@@ -182,11 +182,20 @@ body, html {
 
 .tooltip {
 	border: solid 2px black;
+	background: white;
 	position: absolute;
 	z-index: 1000;
 	height: 64px;
-	width: 100px;
+	right: 320px;
+	width: 320px;
 	display: none;
+	align-items: center;
+}
+
+.tooltipImg {
+	margin-right: 10px;
+	width: 64px;
+	height: 64px;
 }
 
 
