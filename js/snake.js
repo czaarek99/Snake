@@ -38,6 +38,39 @@ function loadImage(src) {
 	return img;
 }
 
+function generateToolTip(id, icon, html, container, displayType){
+	let toolTipID = "ToolTipID_" + id;
+	let htmlContainerID = "HtmlContainerID_" + id;
+	let toolTipImgID = "ToolTipImgID_" + id;
+
+	container.insertAdjacentHTML("beforeend", `
+		<div class="tooltip" id="${toolTipID}">
+			<img src="${icon.src}" class="tooltipImg" id="${toolTipImgID}">
+			<div id="${htmlContainerID}"></div>
+			${html}
+		</div>
+	`);
+
+	let tooltipElem = document.getElementById(toolTipID);
+	container.addEventListener("mouseover", () => {
+		tooltipElem.style.display = displayType;
+	});
+
+	container.addEventListener("mouseout", () => {
+		tooltipElem.style.display = "none";
+	});
+
+	container.addEventListener("mousemove", (event) => {
+		tooltipElem.style.top = (event.clientY - tooltipElem.clientHeight / 2) + "px";
+	});
+
+	return {
+		mainContainer: tooltipElem,
+		icon: document.getElementById(toolTipImgID),
+		customHtmlContainer: document.getElementById(htmlContainerID)
+	};
+}
+
 function $(selector){
 	if(selector.startsWith("#")){
 		return document.getElementById(selector.substring(1));
@@ -131,7 +164,8 @@ class SnakeGame {
 		if(Cookies.get("savedValues") === undefined){
 			this.savedValues = {
 				highscore: 0,
-				longestLifeTicks: 0
+				longestLifeTicks: 0,
+				unlockedAchievements: []
 			};
 
 			this.save();
@@ -146,8 +180,10 @@ class SnakeGame {
 
 		this.upgrades = new Map();
 		this.purchases = new Map();
+		this.achievements = new Map();
 		this.settings = new Map();
 
+		this.snareImg = loadImage("snare.ico");
 		this.appleImg = loadImage("apple.png");
 		this.coinImg = loadImage("coin.png");
 		this.bombImg = loadImage("bomb.png");
@@ -155,6 +191,7 @@ class SnakeGame {
 		this.snakeCurveImg = loadImage("parts/curve.png");
 		this.snakeStraightImg = loadImage("parts/straight.png");
 		this.snakeTailImg = loadImage("parts/tail.png");
+		this.questionImg = loadImage("question.png");
 
 		let addWithID = (collection, item) => {
 			collection.set(item.id, item);
@@ -183,9 +220,19 @@ class SnakeGame {
 
 			purchase.disabled = length <= 10;
 		}));
-		addWithID(this.purchases, new Purchase("suicide", "Suicide", "The easy way out. End it right here right now.", loadImage("snare.ico"), 5, () => {
+		addWithID(this.purchases, new Purchase("suicide", "Suicide", "The easy way out. End it right here right now.", this.snareImg, 5, () => {
+			this.unlockAchievement("kys");
 			this.stopGame();
 		}, null));
+
+		//TODO: Different icons? More achievements
+		//Achievements
+		addWithID(this.achievements, new Achievement("5coins", "Coin Collector", "Collect five coins", this.coinImg));
+		addWithID(this.achievements, new Achievement("10coins", "Coin Stealer", "Collect ten coins", this.coinImg));
+		addWithID(this.achievements, new Achievement("5apples", "Hungry", "Eat five apples", this.appleImg));
+		addWithID(this.achievements, new Achievement("10apples", "Obese", "Eat ten apples", this.appleImg));
+		addWithID(this.achievements, new Achievement("kys", "The easy way out", "Take your life at least once", this.snareImg));
+		addWithID(this.achievements, new Achievement("boom", "Allahu Akbar", "Run into a bomb", this.bombImg));
 
 		this.generateHTML();
 
@@ -197,11 +244,11 @@ class SnakeGame {
 			this.y = snCanvas.getScaledHeight() / 2;
 		};
 
-		this.scoreText = new TextEntity(0, 0, "#afafaf", "0", "Arial 20px", "center");
+		this.scoreText = new TextEntity(0, 0, "#589943", "0", "Arial 20px", "center");
 		this.scoreText.update = centeredTextUpdate;
 		this.pausedText = new TextEntity(0, 0, "black", "Paused!", "Arial 5px", "center");
 		this.pausedText.update = centeredTextUpdate;
-		//TODO: Maybe a little bit too verbose?
+
 		this.pausedText.statesToPaintAt = new Set([GameState.PAUSED]);
 		this.pausedText.statesToUpdateAt = new Set([GameState.PAUSED]);
 
@@ -246,6 +293,14 @@ class SnakeGame {
 
 		this.upgrades.forEach(generatePurchasesFunc);
 		this.purchases.forEach(generatePurchasesFunc);
+
+		this.achievements.forEach((value) => {
+			value.generate($("#achievementsList"))
+		});
+
+		this.savedValues.unlockedAchievements.forEach((achievementID) => {
+			this.achievements.get(achievementID).unlock();
+		});
 	}
 
 	static getGame() {
@@ -262,6 +317,7 @@ class SnakeGame {
 		$("#coinsText").innerHTML = "Coins: " + this.coins;
 		$("#bombsText").innerHTML = "Bombs: " + this.bombs.length;
 		$("#timeText").innerHTML = "Time elapsed: " + this.convertTicksToString();
+		$("#appleText").innerHTML = "Apples Eaten: " + this.currentSnake.applesEaten;
 
 		$("#bombsTimeText").innerHTML = "Next bomb in: " + this.convertTicksToString(this.nextBombTicks - this.ticks);
 	}
@@ -401,6 +457,12 @@ class SnakeGame {
 
 	hasUpgrade(id) {
 		return this.upgrades.get(id).purchased;
+	}
+
+	unlockAchievement(id){
+		let achievement = this.achievements.get(id);
+		achievement.unlock();
+		this.savedValues.unlockedAchievements.push(achievement.id);
 	}
 
 	save(){
@@ -610,6 +672,7 @@ class Snake extends Entity {
 		this.SNAKE_START_LENGT = 5;
 		this.snakeGrowthOnFeed = 4;
 		this.growthLeft = 0;
+		this.applesEaten = 0;
 
 		this.snakeDirection = Direction.RIGHT;
 		this.snakeParts = [];
@@ -812,6 +875,7 @@ class Snake extends Entity {
 		} else if(otherEntity instanceof FoodEntity){
 			otherEntity.kill();
 			this.grow(this.snakeGrowthOnFeed);
+			this.applesEaten++;
 		} else if(otherEntity instanceof CoinEntity){
 			otherEntity.kill();
 		}
@@ -835,6 +899,8 @@ class PlayerSnake extends Snake {
 		let game = SnakeGame.getGame();
 		if(otherEntity instanceof Snake && game.hasUpgrade("phase")) {
 			return;
+		} else if(otherEntity instanceof BombEntity){
+			game.unlockAchievement("boom");
 		}
 
 		super.onCollide(otherEntity);
@@ -850,6 +916,12 @@ class PlayerSnake extends Snake {
 				game.addEntity(new CoinEntity());
 			}
 
+			if(this.applesEaten == 5){
+				game.unlockAchievement("5apples");
+			} else if(this.applesEaten == 10){
+				game.unlockAchievement("10apples");
+			}
+
 		} else if (otherEntity instanceof CoinEntity) {
 			if(game.hasUpgrade("coinshrink")){
 				this.popButt();
@@ -859,6 +931,15 @@ class PlayerSnake extends Snake {
 				game.coins += 2;
 			} else {
 				game.coins++;
+			}
+
+			//TODO: Find a better way than this, for apple achievements too
+			if(game.coins >= 10){
+				game.unlockAchievement("10coins")
+			}
+
+			if(game.coins >= 5){
+				game.unlockAchievement("5coins");
 			}
 		}
 
@@ -995,7 +1076,7 @@ class TextEntity extends ColoredEntity {
 class BackgroundEntity extends ColoredEntity {
 
 	constructor() {
-		super(0, 0, null, null, "#ffea69");
+		super(0, 0, null, null, "#1684AE");
 		this.collidable = false;
 		this.statesToPaintAt = GameState.getAllStates();
 		this.statesToUpdateAt = GameState.getAllStates();
@@ -1006,8 +1087,8 @@ class BackgroundEntity extends ColoredEntity {
 		let context = canvas.canvasContext;
 		context.fillStyle = this.color;
 		context.fillRect(0, 0, this.width, this.height);
-		context.strokeStyle = "black";
-		context.lineWidth = 0.5;
+		context.strokeStyle = "#C76B28";
+		context.lineWidth = 1;
 		context.strokeRect(0, 0, this.width, this.height);
 	}
 
@@ -1089,18 +1170,9 @@ class Purchase extends Updateable {
 			this.buy();
 		});
 
-		let tooltip = document.getElementById(toolTipID);
-		upgrade.addEventListener("mouseover", () => {
-			tooltip.style.display = "flex";
-		});
+		let html = `<p>${this.description}</p>`;
 
-		upgrade.addEventListener("mouseout", () => {
-			tooltip.style.display = "none";
-		});
-
-		upgrade.addEventListener("mousemove", (event) => {
-			tooltip.style.top = (event.clientY - tooltip.clientHeight / 2) + "px";
-		});
+		generateToolTip(this.id, this.icon, html, upgrade, "flex");
 	}
 
 }
@@ -1131,6 +1203,54 @@ class Upgrade extends Purchase {
 			this.containingElement.classList.remove("purchasedPurchase");
 		}
 	}
+}
+
+class Achievement {
+
+	constructor(id, displayName, description, icon){
+		this.id = id;
+		this.displayName = displayName;
+		this.description = description;
+		this.icon = icon;
+		this.locked = true;
+	}
+
+	unlock(){
+		if(this.locked){
+			this.locked = false;
+			this.achievement.icon.src = this.icon.src;
+
+			let html = `
+			<div>
+				<p class="achievementName noMargin">${this.displayName}</p>
+				<p class="achievementSubText noMargin">[Achievement] [Unlocked]</p>
+				<p class="noMargin">${this.description}</p>
+			</div>
+			`;
+
+			generateToolTip(this.id, this.icon, html, this.achievement.mainContainer, "flex");
+
+		}
+	}
+
+	generate(container){
+		let game = SnakeGame.getGame();
+		let achievementID = "AchievementID_" + this.id;
+		let achievementIconID = "AchievementIconID_" + this.id;
+
+		container.insertAdjacentHTML("beforeend", `
+				<div class="achievement" id="${achievementID}">
+					<img src="${game.questionImg.src}" class="achievementIcon" id="${achievementIconID}">
+				</div>
+			`);
+
+		this.achievement = {
+			mainContainer: document.getElementById(achievementID),
+			icon: document.getElementById(achievementIconID)
+		};
+
+	}
+
 }
 
 //TODO: Make settings generate from this object
@@ -1165,8 +1285,8 @@ class SliderSetting extends Setting {
 		let sliderTextID = "InternalSliderTextID_" + this.name;
 		let sliderID = "InternalSliderID_" + this.name;
 
-		container.insertAdjacentHTML("beforeend",
-			`<div class="sliderContainer">
+		container.insertAdjacentHTML("beforeend", `
+			<div class="sliderContainer">
 				<div class="sliderTextContainer">
 					<p id="${sliderTextID}" class="sliderName">${this.name}</p>
 					<p class="sliderValue">${this.value}</p>
