@@ -1073,6 +1073,7 @@ class TextEntity extends ColoredEntity {
 
 }
 
+//TODO: Fix collisions, snake can run into brown area without dying
 class BackgroundEntity extends ColoredEntity {
 
 	constructor() {
