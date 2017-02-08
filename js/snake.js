@@ -180,8 +180,9 @@ class SnakeGame {
 
 		this.upgrades = new Map();
 		this.purchases = new Map();
-		this.achievements = new Map();
 		this.settings = new Map();
+
+		this.achievements = new Map();
 
 		this.snareImg = loadImage("snare.ico");
 		this.appleImg = loadImage("apple.png");
@@ -195,6 +196,7 @@ class SnakeGame {
 
 		let addWithID = (collection, item) => {
 			collection.set(item.id, item);
+			return item;
 		};
 
 		//Upgrades
@@ -227,12 +229,26 @@ class SnakeGame {
 
 		//TODO: Different icons? More achievements
 		//Achievements
-		addWithID(this.achievements, new Achievement("5coins", "Coin Collector", "Collect five coins", this.coinImg));
-		addWithID(this.achievements, new Achievement("10coins", "Coin Stealer", "Collect ten coins", this.coinImg));
-		addWithID(this.achievements, new Achievement("5apples", "Hungry", "Eat five apples", this.appleImg));
-		addWithID(this.achievements, new Achievement("10apples", "Obese", "Eat ten apples", this.appleImg));
-		addWithID(this.achievements, new Achievement("kys", "The easy way out", "Take your life at least once", this.snareImg));
-		addWithID(this.achievements, new Achievement("boom", "Allahu Akbar", "Run into a bomb", this.bombImg));
+
+		for(let i = 1; i < 10; i++){
+			let required = Math.pow(2, i);
+
+			addWithID(this.achievements, new Achievement(`coins${i}`, `Coin Collector ${i}`, `Collect ${required} coins`, this.coinImg, () => {
+				return this.coins >= required;
+			}));
+		}
+
+		for(let i = 4; i < 14; i++){
+			let id = i - 3;
+			let required = Math.pow(2, i);
+
+			addWithID(this.achievements, new Achievement(`apples${id}`, `Apple Collector ${id}`, `Collect ${required} apples`, this.appleImg, () => {
+				return this.currentSnake.applesEaten >= required;
+			}));
+		}
+
+		addWithID(this.achievements, new Achievement("kys", "The easy way out", "Take your life at least once", this.snareImg, null));
+		addWithID(this.achievements, new Achievement("boom", "Allahu Akbar", "Run into a bomb", this.bombImg, null));
 
 		this.generateHTML();
 
@@ -462,7 +478,6 @@ class SnakeGame {
 	unlockAchievement(id){
 		let achievement = this.achievements.get(id);
 		achievement.unlock();
-		this.savedValues.unlockedAchievements.push(achievement.id);
 	}
 
 	save(){
@@ -479,6 +494,7 @@ class SnakeGame {
 
 			this.upgrades.forEach(update);
 			this.purchases.forEach(update);
+			this.achievements.forEach(update);
 		}
 
 		let snCanvas = this.snakeCanvas;
@@ -916,12 +932,6 @@ class PlayerSnake extends Snake {
 				game.addEntity(new CoinEntity());
 			}
 
-			if(this.applesEaten == 5){
-				game.unlockAchievement("5apples");
-			} else if(this.applesEaten == 10){
-				game.unlockAchievement("10apples");
-			}
-
 		} else if (otherEntity instanceof CoinEntity) {
 			if(game.hasUpgrade("coinshrink")){
 				this.popButt();
@@ -933,14 +943,6 @@ class PlayerSnake extends Snake {
 				game.coins++;
 			}
 
-			//TODO: Find a better way than this, for apple achievements too
-			if(game.coins >= 10){
-				game.unlockAchievement("10coins")
-			}
-
-			if(game.coins >= 5){
-				game.unlockAchievement("5coins");
-			}
 		}
 
 	}
@@ -1206,18 +1208,22 @@ class Upgrade extends Purchase {
 	}
 }
 
-class Achievement {
+class Achievement extends Updateable {
 
-	constructor(id, displayName, description, icon){
+	constructor(id, displayName, description, icon, condition){
+		super();
 		this.id = id;
 		this.displayName = displayName;
 		this.description = description;
 		this.icon = icon;
 		this.locked = true;
+		this.condition = condition;
 	}
 
 	unlock(){
 		if(this.locked){
+			SnakeGame.getGame().savedValues.unlockedAchievements.push(this.id);
+
 			this.locked = false;
 			this.achievement.icon.src = this.icon.src;
 
@@ -1230,7 +1236,6 @@ class Achievement {
 			`;
 
 			generateToolTip(this.id, this.icon, html, this.achievement.mainContainer, "flex");
-
 		}
 	}
 
@@ -1250,6 +1255,12 @@ class Achievement {
 			icon: document.getElementById(achievementIconID)
 		};
 
+	}
+
+	update(){
+		if(this.condition != null && this.condition()){
+			this.unlock();
+		}
 	}
 
 }
