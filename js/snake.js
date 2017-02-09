@@ -229,7 +229,6 @@ class SnakeGame {
 
 		//TODO: Different icons? More achievements
 		//Achievements
-
 		for(let i = 1; i < 10; i++){
 			let required = Math.pow(2, i);
 
@@ -249,6 +248,7 @@ class SnakeGame {
 
 		addWithID(this.achievements, new Achievement("kys", "The easy way out", "Take your life at least once", this.snareImg, null));
 		addWithID(this.achievements, new Achievement("boom", "Allahu Akbar", "Run into a bomb", this.bombImg, null));
+		addWithID(this.achievements, new Achievement("upgrade", "Upgrader", "Purchase an upgrade", loadImage("upgrade.png"), null));
 
 		this.generateHTML();
 
@@ -310,9 +310,15 @@ class SnakeGame {
 		this.upgrades.forEach(generatePurchasesFunc);
 		this.purchases.forEach(generatePurchasesFunc);
 
+		let achievementsList = $("#achievementsList");
 		this.achievements.forEach((value) => {
-			value.generate($("#achievementsList"))
+			value.generate(achievementsList)
 		});
+
+		let fillersToAdd = this.achievements.size % 4;
+		for(let i = 0; i < fillersToAdd; i++){
+			achievementsList.insertAdjacentHTML("beforeend", "<div class='achievement achievementFiller'></div>");
+		}
 
 		this.savedValues.unlockedAchievements.forEach((achievementID) => {
 			this.achievements.get(achievementID).unlock();
@@ -627,8 +633,8 @@ class Entity extends Updateable {
 
 	constructor(x, y, width, height) {
 		super();
-		this.x = x;
-		this.y = y;
+		this._x = x;
+		this._y = y;
 		this.width = width;
 		this.height = height;
 		this.dead = false;
@@ -679,12 +685,28 @@ class Entity extends Updateable {
 			this.y++;
 		}
 	}
+
+	get x(){
+		return this._x;
+	}
+
+	set x(x){
+		this._x = x;
+	}
+
+	get y(){
+		return this._y;
+	}
+
+	set y(y){
+		this._y = y;
+	}
 }
 
 class Snake extends Entity {
 
 	constructor() {
-		super(null, null, null, null);
+		super(-5000, -5000, -5000, -5000);
 		this.SNAKE_START_LENGT = 5;
 		this.snakeGrowthOnFeed = 4;
 		this.growthLeft = 0;
@@ -694,7 +716,7 @@ class Snake extends Entity {
 		this.snakeParts = [];
 
 		//Initialize start snake
-		for (let i = this.SNAKE_START_LENGT; i > 0; i--) {
+		for (let i = this.SNAKE_START_LENGT + 2; i > 2; i--) {
 			this.snakeParts.push(new SnakePartEntity(i, 2))
 		}
 
@@ -895,8 +917,14 @@ class Snake extends Entity {
 		} else if(otherEntity instanceof CoinEntity){
 			otherEntity.kill();
 		}
+	}
 
+	get x(){
+		return this.getHead().x;
+	}
 
+	get y(){
+		return this.getHead().y;
 	}
 }
 
@@ -1080,9 +1108,9 @@ class BackgroundEntity extends ColoredEntity {
 
 	constructor() {
 		super(0, 0, null, null, "#1684AE");
-		this.collidable = false;
 		this.statesToPaintAt = GameState.getAllStates();
 		this.statesToUpdateAt = GameState.getAllStates();
+		this.collidable = false;
 		this.update();
 	}
 
@@ -1090,9 +1118,6 @@ class BackgroundEntity extends ColoredEntity {
 		let context = canvas.canvasContext;
 		context.fillStyle = this.color;
 		context.fillRect(0, 0, this.width, this.height);
-		context.strokeStyle = "#C76B28";
-		context.lineWidth = 1;
-		context.strokeRect(0, 0, this.width, this.height);
 	}
 
 	update() {
@@ -1103,6 +1128,31 @@ class BackgroundEntity extends ColoredEntity {
 
 	kill() {
 	}
+}
+
+class WallEntity extends ColoredEntity {
+
+	constructor(wallType){
+		super(null, null, null, "#C76B28");
+		this.wallType = wallType;
+
+		if(wallType == "vertical"){
+
+		} else if(wallType == "horizontal"){
+
+		}
+	}
+
+	paint(canvas) {
+		let context = canvas.canvasContext;
+		context.fillStyle = this.color;
+		context.fillRect(this.x, this.y, this.width, this.height);
+	}
+
+	onCollide(otherEntity){
+		otherEntity.kill();
+	}
+
 }
 
 class Purchase extends Updateable {
@@ -1190,6 +1240,9 @@ class Upgrade extends Purchase {
 
 	buy() {
 		if (!this.purchased) {
+			let game = SnakeGame.getGame();
+			game.unlockAchievement("upgrade");
+
 			super.buy();
 
 			this.disabled = true;

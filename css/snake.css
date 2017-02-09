@@ -227,7 +227,10 @@ body, html {
 
 .achievementSubText {
 	font-size: x-small;
+}
 
+.achievementFiller {
+	opacity: 0;
 }
 
 
