@@ -253,7 +253,7 @@ class SnakeGame {
 		this.generateHTML();
 
 		let snCanvas = this.snakeCanvas = new SnakeCanvas();
-		this.background = new BackgroundEntity();
+		this.background = new BackgroundEntity(1, "#1684AE");
 
 		let centeredTextUpdate = function(){
 			this.x = snCanvas.getScaledWidth() / 2;
@@ -269,6 +269,7 @@ class SnakeGame {
 		this.pausedText.statesToUpdateAt = new Set([GameState.PAUSED]);
 
 		this.entities = new Set();
+		this.addEntity(new BackgroundEntity(0, "#C76B28"));
 		this.addEntity(this.background);
 		this.addEntity(this.scoreText);
 		this.addEntity(this.pausedText);
@@ -1103,44 +1104,15 @@ class TextEntity extends ColoredEntity {
 
 }
 
-//TODO: Fix collisions, snake can run into brown area without dying
 class BackgroundEntity extends ColoredEntity {
 
-	constructor() {
-		super(0, 0, null, null, "#1684AE");
+	constructor(borderWidth, color) {
+		super(borderWidth, borderWidth, null, null, color);
 		this.statesToPaintAt = GameState.getAllStates();
 		this.statesToUpdateAt = GameState.getAllStates();
 		this.collidable = false;
+		this.borderWidth = borderWidth;
 		this.update();
-	}
-
-	paint(canvas) {
-		let context = canvas.canvasContext;
-		context.fillStyle = this.color;
-		context.fillRect(0, 0, this.width, this.height);
-	}
-
-	update() {
-		let game = SnakeGame.getGame();
-		this.width = game.snakeCanvas.getScaledWidth();
-		this.height = game.snakeCanvas.getScaledHeight();
-	}
-
-	kill() {
-	}
-}
-
-class WallEntity extends ColoredEntity {
-
-	constructor(wallType){
-		super(null, null, null, "#C76B28");
-		this.wallType = wallType;
-
-		if(wallType == "vertical"){
-
-		} else if(wallType == "horizontal"){
-
-		}
 	}
 
 	paint(canvas) {
@@ -1149,10 +1121,15 @@ class WallEntity extends ColoredEntity {
 		context.fillRect(this.x, this.y, this.width, this.height);
 	}
 
-	onCollide(otherEntity){
-		otherEntity.kill();
+	update() {
+		let game = SnakeGame.getGame();
+		let doubleBorder = this.borderWidth * 2;
+		this.width = game.snakeCanvas.getScaledWidth() - doubleBorder;
+		this.height = game.snakeCanvas.getScaledHeight() - doubleBorder;
 	}
 
+	kill() {
+	}
 }
 
 class Purchase extends Updateable {
