@@ -580,9 +580,31 @@ class SnakeCanvas {
 
 	updateCanvasSize() {
 		let game = SnakeGame.getGame();
+		let context = this.canvasContext;
 
-		this.canvasEl.setAttribute("width", document.body.clientWidth - game.menuWidth);
-		this.canvasEl.setAttribute("height", document.body.clientHeight);
+		let devicePixelRatio = window.devicePixelRatio || 1;
+		let backingStoreRatio =
+			context.webkitBackingStorePixelRatio ||
+			context.mozBackingStorePixelRatio ||
+			context.msBackingStorePixelRatio ||
+			context.oBackingStorePixelRatio ||
+			context.backingStorePixelRatio || 1;
+
+		let ratio = devicePixelRatio / backingStoreRatio;
+
+		let canvasEl = this.canvasEl;
+		let canvasWidth = document.body.clientWidth - game.menuWidth;
+		let canvasHeight = document.body.clientHeight;
+
+		if(devicePixelRatio !== backingStoreRatio){
+			canvasEl.style.width = canvasWidth + "px";
+			canvasEl.style.height = canvasHeight + "px";
+		} else {
+			ratio = 1;
+		}
+
+		canvasEl.setAttribute("width", canvasWidth * ratio);
+		canvasEl.setAttribute("height", canvasHeight * ratio);
 
 		let minPixels = 1900;
 		let maxPixels = 2100;
@@ -622,6 +644,10 @@ class SnakeCanvas {
 	isBigEnough(){
 		let minCanvasSize = 200;
 		return !(this.getRealHeight() < minCanvasSize || this.getRealWidth() < minCanvasSize);
+	}
+
+	getRatio(){
+
 	}
 }
 
