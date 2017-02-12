@@ -5,6 +5,7 @@
  * */
 
 const TICKRATE = 20;
+const log2 = Math.log(2);
 document.addEventListener("DOMContentLoaded", () => {
 	let game = SnakeGame.getGame();
 
@@ -88,10 +89,11 @@ function $(selector){
 const directions = [];
 class Direction {
 
-	constructor(direction, oppositeDirection, headRotation){
+	constructor(direction, oppositeDirection, headRotation, applyMovement){
 		this.direction = direction;
 		this.oppositeDirection = oppositeDirection;
 		this.headRotation = headRotation;
+		this.applyMovement = applyMovement;
 	}
 
 	isOpposite(direction){
@@ -113,10 +115,18 @@ class Direction {
 
 }
 
-Direction.LEFT = Direction.addDirection(new Direction("left", "right", 0));
-Direction.UP = Direction.addDirection(new Direction("up", "down", 90));
-Direction.RIGHT = Direction.addDirection(new Direction("right", "left", 180));
-Direction.DOWN = Direction.addDirection(new Direction("down", "up", 270));
+Direction.LEFT = Direction.addDirection(new Direction("left", "right", 0, (entity, amount) => {
+	entity.x -= amount;
+}));
+Direction.UP = Direction.addDirection(new Direction("up", "down", 90,(entity, amount) => {
+	entity.y -= amount;
+}));
+Direction.RIGHT = Direction.addDirection(new Direction("right", "left", 180, (entity, amount) => {
+	entity.x += amount;
+}));
+Direction.DOWN = Direction.addDirection(new Direction("down", "up", 270, (entity, amount) => {
+	entity.y += amount;
+}));
 Object.freeze(directions);
 
 const gameStates = new Set();
@@ -168,7 +178,6 @@ class SnakeGame {
 				unlockedAchievements: []
 			};
 
-			this.save();
 		} else {
 			this.savedValues = Cookies.getJSON("savedValues");
 		}
@@ -209,6 +218,11 @@ class SnakeGame {
 		addWithID(this.upgrades, new Upgrade("doublescore", "Double Score", "Every apple increases your score by two instead of one", loadImage("score.png"), 15, null, null));
 
 		//Purchases
+		addWithID(this.purchases, new Purchase("defuse", "Defuse all bombs", "Defuses all the bombs on the field", this.bombImg, 20, () => {
+			this.bombs.forEach((bomb) => {
+				bomb.kill();
+			});
+		}, null));
 		addWithID(this.purchases, new Purchase("cut", "Cut in Half", "Cuts your snake in half", loadImage("scissors.png"), 10, () => {
 			let length = this.currentSnake.snakeParts.length;
 
@@ -296,6 +310,7 @@ class SnakeGame {
 		});
 
 		this.updateNewGameOverlay(true);
+		this.save();
 	}
 
 	generateHTML() {
@@ -488,6 +503,16 @@ class SnakeGame {
 	}
 
 	save(){
+		let savedAchievements = [];
+
+		this.achievements.forEach((achievement) => {
+			if(!achievement.locked){
+				savedAchievements.push(achievement.id);
+			}
+		});
+
+		this.savedValues.unlockedAchievements = savedAchievements;
+
 		Cookies.set("savedValues", this.savedValues, {expires: 365});
 	}
 
@@ -505,7 +530,7 @@ class SnakeGame {
 		}
 
 		let snCanvas = this.snakeCanvas;
-		let canvasCont = snCanvas.canvasContext;
+		let canvasCont = snCanvas.canvasCtx;
 		snCanvas.updateCanvasSize();
 		snCanvas.scaleNext();
 
@@ -568,7 +593,10 @@ class SnakeCanvas {
 
 	constructor() {
 		this.canvasEl = $("#snakeCanvas");
-		this.canvasContext = this.canvasEl.getContext("2d");
+		this.canvasCtx = this.canvasEl.getContext("2d");
+
+		this.scalingCanvasEl = document.createElement("canvas");
+		this.scalingCanvasCtx = this.scalingCanvasEl.getContext("2d");
 
 		this.scale = 1;
 		this.updateCanvasSize();
@@ -580,7 +608,7 @@ class SnakeCanvas {
 
 	updateCanvasSize() {
 		let game = SnakeGame.getGame();
-		let context = this.canvasContext;
+		let context = this.canvasCtx;
 
 		let devicePixelRatio = window.devicePixelRatio || 1;
 		let backingStoreRatio =
@@ -592,19 +620,19 @@ class SnakeCanvas {
 
 		let ratio = devicePixelRatio / backingStoreRatio;
 
-		let canvasEl = this.canvasEl;
+		let canvas = this.canvasEl;
 		let canvasWidth = document.body.clientWidth - game.menuWidth;
 		let canvasHeight = document.body.clientHeight;
 
 		if(devicePixelRatio !== backingStoreRatio){
-			canvasEl.style.width = canvasWidth + "px";
-			canvasEl.style.height = canvasHeight + "px";
+			canvas.style.width = canvasWidth + "px";
+			canvas.style.height = canvasHeight + "px";
 		} else {
 			ratio = 1;
 		}
 
-		canvasEl.setAttribute("width", canvasWidth * ratio);
-		canvasEl.setAttribute("height", canvasHeight * ratio);
+		canvas.width = canvasWidth * ratio;
+		canvas.height = canvasHeight * ratio;
 
 		let minPixels = 1900;
 		let maxPixels = 2100;
@@ -621,8 +649,36 @@ class SnakeCanvas {
 		}
 	}
 
+	drawScaledImage(img, x, y, width, height){
+		let sourceWidth = img.width;
+		let sourceHeight = img.height;
+		let targetWidth = this.scale * width;
+
+		let scalingCtx = this.scalingCanvasCtx;
+		let scalingCanvas = this.scalingCanvasEl;
+
+		let currentWidth = sourceWidth;
+		let currentHeight = sourceHeight;
+
+		scalingCanvas.width = currentWidth;
+		scalingCanvas.height = currentHeight;
+
+		scalingCtx.clearRect(0, 0, scalingCanvas.width, scalingCanvas.height);
+		scalingCtx.drawImage(img, 0, 0, sourceWidth, sourceHeight);
+
+		let steps = Math.floor(Math.log(sourceWidth / targetWidth) / log2);
+		for(let i = 0; i < steps; i++){
+			currentWidth *= 0.5;
+			currentHeight *= 0.5;
+
+			scalingCtx.drawImage(scalingCanvas, 0, 0, currentWidth, currentHeight);
+		}
+
+		this.canvasCtx.drawImage(scalingCanvas, 0, 0, currentWidth, currentHeight, x, y, width, height);
+	}
+
 	scaleNext() {
-		this.canvasContext.scale(this.scale, this.scale);
+		this.canvasCtx.scale(this.scale, this.scale);
 	}
 
 	getScaledHeight() {
@@ -701,16 +757,8 @@ class Entity extends Updateable {
 	onCollide(otherEntity) {
 	}
 
-	moveForward(direction){
-		if(direction == Direction.LEFT){
-			this.x--;
-		} else if(direction == Direction.UP){
-			this.y--;
-		} else if(direction == Direction.RIGHT){
-			this.x++;
-		} else if(direction == Direction.DOWN){
-			this.y++;
-		}
+	move(direction, amount){
+		direction.applyMovement(this, amount);
 	}
 
 	get x(){
@@ -738,7 +786,7 @@ class Snake extends Entity {
 		this.snakeGrowthOnFeed = 4;
 		this.growthLeft = 0;
 		this.applesEaten = 0;
-
+		
 		this.snakeDirection = Direction.RIGHT;
 		this.snakeParts = [];
 
@@ -778,22 +826,14 @@ class Snake extends Entity {
 		let direction = this.snakeDirection;
 
 		/*
-		If the snake needs to grow then append a new part in front of it
-		Otherwise move the butt to the front and making it the new head
-		and leave updating the image to the paint() function
+		 If the snake needs to grow then append a new part in front of it
+		 Otherwise move the butt to the front and making it the new head
+		 and leave updating the image to the paint() function
 		 */
 		if(this.growthLeft > 0){
 			let newPart = new SnakePartEntity(snakeHead.x, snakeHead.y);
 
-			if (direction == Direction.LEFT) {
-				newPart.x--;
-			} else if (direction == Direction.UP) {
-				newPart.y--;
-			} else if (direction == Direction.RIGHT) {
-				newPart.x++;
-			} else if (direction == Direction.DOWN) {
-				newPart.y++;
-			}
+			newPart.move(direction, 1);
 
 			this.growthLeft--;
 			this.snakeParts.unshift(newPart);
@@ -1019,7 +1059,7 @@ class ImageEntity extends Entity {
 	}
 
 	paint(canvas) {
-		let context = canvas.canvasContext;
+		let context = canvas.canvasCtx;
 		let rotate = this.rotation != 0;
 		
 		if (rotate) {
@@ -1027,12 +1067,12 @@ class ImageEntity extends Entity {
 
 			context.translate(this.x + (this.width / 2), this.y + (this.height / 2));
 			context.rotate(this.rotation * Math.PI / 180);
-			
-			context.drawImage(this.image, this.width / -2, this.height / -2, this.width, this.height);
+
+			canvas.drawScaledImage(this.image, this.width / -2, this.height / -2, this.width, this.height);
 
 			context.restore();
 		} else {
-			context.drawImage(this.image, this.x, this.y, this.width, this.height);
+			canvas.drawScaledImage(this.image, this.x, this.y, this.width, this.height);
 		}
 	}
 }
@@ -1116,7 +1156,7 @@ class TextEntity extends ColoredEntity {
 	}
 
 	paint(canvas) {
-		let canvasCont = canvas.canvasContext;
+		let canvasCont = canvas.canvasCtx;
 
 		canvasCont.fillStyle = this.color;
 		canvasCont.font = this.font;
@@ -1142,7 +1182,7 @@ class BackgroundEntity extends ColoredEntity {
 	}
 
 	paint(canvas) {
-		let context = canvas.canvasContext;
+		let context = canvas.canvasCtx;
 		context.fillStyle = this.color;
 		context.fillRect(this.x, this.y, this.width, this.height);
 	}
@@ -1278,7 +1318,6 @@ class Achievement extends Updateable {
 
 	unlock(){
 		if(this.locked){
-			SnakeGame.getGame().savedValues.unlockedAchievements.push(this.id);
 
 			this.locked = false;
 			this.achievement.icon.src = this.icon.src;
@@ -1314,7 +1353,7 @@ class Achievement extends Updateable {
 	}
 
 	update(){
-		if(this.condition != null && this.condition()){
+		if(this.locked && this.condition != null && this.condition()){
 			this.unlock();
 		}
 	}

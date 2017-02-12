@@ -25,10 +25,8 @@ body, html {
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-
 	height: 90px;
 	width: 200px;
-
 	transform: translate(-50%, -50%);
 }
 
@@ -63,6 +61,7 @@ body, html {
 	height: 100%;
 	padding-left: 20px;
 	padding-right: 20px;
+	text-decoration-color: white;
 }
 
 .menuSection {
@@ -214,6 +213,7 @@ body, html {
 	width: 40px;
 	height: 40px;
 	margin: 0 5px 5px 5px;
+	background-color: white;
 }
 
 .achievementIcon {
