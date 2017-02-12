@@ -13,3 +13,11 @@ A simple implementation of snake using a html5 canvas and javascript
 #### Plans
 
 Make this into a snake idle game instead
+
+Ideas:
+
+* Ability to build buildings on canvas
+* Helper snakes
+* Bigger canvas with upgrade
+* Another section so the canvas is more square, looks strange in fullscreen atm
+
