@@ -597,6 +597,8 @@ class SnakeCanvas {
 
 		this.scalingCanvasEl = document.createElement("canvas");
 		this.scalingCanvasCtx = this.scalingCanvasEl.getContext("2d");
+		this.secondScalingCanvas = document.createElement("canvas");
+		this.secondScalingCanvasCtx = this.secondScalingCanvas.getContext("2d");
 
 		this.scale = 1;
 		this.updateCanvasSize();
@@ -657,24 +659,40 @@ class SnakeCanvas {
 		let scalingCtx = this.scalingCanvasCtx;
 		let scalingCanvas = this.scalingCanvasEl;
 
+		let secondScalingCtx = this.secondScalingCanvasCtx;
+		let secondScalingCanvas = this.secondScalingCanvas;
+
 		let currentWidth = sourceWidth;
 		let currentHeight = sourceHeight;
 
-		scalingCanvas.width = currentWidth;
-		scalingCanvas.height = currentHeight;
+		secondScalingCanvas.width = scalingCanvas.width = currentWidth;
+		secondScalingCanvas.height = scalingCanvas.height = currentHeight;
 
 		scalingCtx.clearRect(0, 0, scalingCanvas.width, scalingCanvas.height);
 		scalingCtx.drawImage(img, 0, 0, sourceWidth, sourceHeight);
 
-		let steps = Math.floor(Math.log(sourceWidth / targetWidth) / log2);
-		for(let i = 0; i < steps; i++){
-			currentWidth *= 0.5;
-			currentHeight *= 0.5;
+		let steps = Math.max(0, Math.floor(Math.log(sourceWidth / targetWidth) / log2));
 
-			scalingCtx.drawImage(scalingCanvas, 0, 0, currentWidth, currentHeight);
+		for(let i = 0; i < steps; i++){
+			currentWidth /= 2;
+			currentHeight /= 2;
+
+			if(i % 2 == 0){
+				secondScalingCanvas.width = currentWidth;
+				secondScalingCanvas.height = currentHeight;
+				secondScalingCtx.drawImage(scalingCanvas, 0, 0, currentWidth, currentHeight);
+				scalingCtx.clearRect(0, 0, scalingCanvas.width, scalingCanvas.height);
+			} else {
+				scalingCanvas.width = currentWidth;
+				scalingCanvas.height = currentHeight;
+				scalingCtx.drawImage(secondScalingCanvas, 0, 0, currentWidth, currentHeight);
+				secondScalingCtx.clearRect(0, 0, secondScalingCanvas.width, secondScalingCanvas.height);
+			}
+
 		}
 
-		this.canvasCtx.drawImage(scalingCanvas, 0, 0, currentWidth, currentHeight, x, y, width, height);
+		let finalCanvas = (steps % 2 == 0) ? scalingCanvas : secondScalingCanvas;
+		this.canvasCtx.drawImage(finalCanvas, 0, 0, currentWidth, currentHeight, x, y, width, height);
 	}
 
 	scaleNext() {
