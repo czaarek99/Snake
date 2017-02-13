@@ -669,8 +669,8 @@ class SnakeCanvas {
 			let currentWidth = sourceWidth;
 			let currentHeight = sourceHeight;
 
-			secondScalingCanvas.width = scalingCanvas.width = currentWidth;
-			secondScalingCanvas.height = scalingCanvas.height = currentHeight;
+			scalingCanvas.width = currentWidth;
+			scalingCanvas.height = currentHeight;
 
 			scalingCtx.clearRect(0, 0, scalingCanvas.width, scalingCanvas.height);
 			scalingCtx.drawImage(img, 0, 0, sourceWidth, sourceHeight);
