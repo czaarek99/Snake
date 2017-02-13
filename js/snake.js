@@ -652,47 +652,52 @@ class SnakeCanvas {
 	}
 
 	drawScaledImage(img, x, y, width, height){
+		let canvasCtx = this.canvasCtx;
 		let sourceWidth = img.width;
 		let sourceHeight = img.height;
 		let targetWidth = this.scale * width;
 
-		let scalingCtx = this.scalingCanvasCtx;
-		let scalingCanvas = this.scalingCanvasEl;
-
-		let secondScalingCtx = this.secondScalingCanvasCtx;
-		let secondScalingCanvas = this.secondScalingCanvas;
-
-		let currentWidth = sourceWidth;
-		let currentHeight = sourceHeight;
-
-		secondScalingCanvas.width = scalingCanvas.width = currentWidth;
-		secondScalingCanvas.height = scalingCanvas.height = currentHeight;
-
-		scalingCtx.clearRect(0, 0, scalingCanvas.width, scalingCanvas.height);
-		scalingCtx.drawImage(img, 0, 0, sourceWidth, sourceHeight);
-
 		let steps = Math.max(0, Math.floor(Math.log(sourceWidth / targetWidth) / log2));
 
-		for(let i = 0; i < steps; i++){
-			currentWidth /= 2;
-			currentHeight /= 2;
+		if(steps > 0){
+			let scalingCtx = this.scalingCanvasCtx;
+			let scalingCanvas = this.scalingCanvasEl;
 
-			if(i % 2 == 0){
-				secondScalingCanvas.width = currentWidth;
-				secondScalingCanvas.height = currentHeight;
-				secondScalingCtx.drawImage(scalingCanvas, 0, 0, currentWidth, currentHeight);
-				scalingCtx.clearRect(0, 0, scalingCanvas.width, scalingCanvas.height);
-			} else {
-				scalingCanvas.width = currentWidth;
-				scalingCanvas.height = currentHeight;
-				scalingCtx.drawImage(secondScalingCanvas, 0, 0, currentWidth, currentHeight);
-				secondScalingCtx.clearRect(0, 0, secondScalingCanvas.width, secondScalingCanvas.height);
+			let secondScalingCtx = this.secondScalingCanvasCtx;
+			let secondScalingCanvas = this.secondScalingCanvas;
+
+			let currentWidth = sourceWidth;
+			let currentHeight = sourceHeight;
+
+			secondScalingCanvas.width = scalingCanvas.width = currentWidth;
+			secondScalingCanvas.height = scalingCanvas.height = currentHeight;
+
+			scalingCtx.clearRect(0, 0, scalingCanvas.width, scalingCanvas.height);
+			scalingCtx.drawImage(img, 0, 0, sourceWidth, sourceHeight);
+
+			for(let i = 0; i < steps; i++){
+				currentWidth /= 2;
+				currentHeight /= 2;
+
+				if(i % 2 == 0){
+					secondScalingCanvas.width = currentWidth;
+					secondScalingCanvas.height = currentHeight;
+					secondScalingCtx.drawImage(scalingCanvas, 0, 0, currentWidth, currentHeight);
+					scalingCtx.clearRect(0, 0, scalingCanvas.width, scalingCanvas.height);
+				} else {
+					scalingCanvas.width = currentWidth;
+					scalingCanvas.height = currentHeight;
+					scalingCtx.drawImage(secondScalingCanvas, 0, 0, currentWidth, currentHeight);
+					secondScalingCtx.clearRect(0, 0, secondScalingCanvas.width, secondScalingCanvas.height);
+				}
+
 			}
 
+			let finalCanvas = (steps % 2 == 0) ? scalingCanvas : secondScalingCanvas;
+			canvasCtx.drawImage(finalCanvas, 0, 0, currentWidth, currentHeight, x, y, width, height);
+		} else {
+			canvasCtx.drawImage(img, x, y, width, height);
 		}
-
-		let finalCanvas = (steps % 2 == 0) ? scalingCanvas : secondScalingCanvas;
-		this.canvasCtx.drawImage(finalCanvas, 0, 0, currentWidth, currentHeight, x, y, width, height);
 	}
 
 	scaleNext() {
