@@ -857,24 +857,22 @@ class Snake extends Entity {
 		return this.getHead().collidesWith(item);
 	}
 
-	//TODO: Fix snake dying when moving more than 1 block at once
+	//TODO: Fix this algorithm. Make it also work with decimals
 	move(direction, amount){
-        let snakeHead = this.getHead();
-
         for(let i = 0; i < amount; i++){
+            let snakeHead = this.getHead();
+
             /*
              If the snake needs to grow then append a new part in front of it
-             Otherwise move the butt to the front and making it the new head
+             Otherwise move the butt to the front and make it the new head
              and leave updating the image to the paint() function
              */
             if(this.growthLeft > 0){
                 let newPart = new SnakePartEntity(snakeHead.x, snakeHead.y);
-
                 newPart.move(direction, 1);
 
                 this.growthLeft--;
                 this.snakeParts.unshift(newPart);
-
             } else {
                 let snakeButt = this.popButt();
 
@@ -910,7 +908,9 @@ class Snake extends Entity {
 
 	isInside(otherEntity) {
 		for (let i = 0; i < this.snakeParts.length; i++) {
-			if (this.snakeParts[i].isInside(otherEntity)) {
+            let part = this.snakeParts[i];
+
+			if (part.isInside(otherEntity)) {
 				return true;
 			}
 		}
