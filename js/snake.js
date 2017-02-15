@@ -31,6 +31,14 @@ document.addEventListener("DOMContentLoaded", () => {
  *
  * */
 
+function $(selector){
+    if(selector.startsWith("#")){
+        return document.getElementById(selector.substring(1));
+    } else if(selector.startsWith(".")){
+        return document.getElementsByClassName(selector.substring(1));
+    }
+}
+
 function getRandomInt(min, max) {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -184,7 +192,6 @@ class SnakeGame {
 			this.savedValues = Cookies.getJSON("savedValues");
 		}
 
-		this.bombs = [];
 		this.ticks = 0;
 		this.score = 0;
 		this.coins = 0;
@@ -211,6 +218,9 @@ class SnakeGame {
 		};
 
 		//Upgrades
+		addWithID(this.upgrades, new Upgrade("bombsquad", "Bomb Squad", "Defuse any bomb you run into", this.bombImg, 125, () => {
+			this.currentSnake.canDefuseBombs = true;
+		}, null));
 		addWithID(this.upgrades, new Upgrade("coinshrink", "Shrinking Coins", "Every time you eat a coin your snake shrinks!", loadImage("coincut.png"), 100, null, null));
 		addWithID(this.upgrades, new Upgrade("phase", "Phasing Snake", "Allows you to phase through yourself without dying.", this.snakeHeadImg, 100, null, null));
 		addWithID(this.upgrades, new Upgrade("doublecoin", "Double Coins", "All coins are worth 2x", loadImage("doublecoin.png"), 30, null, null));
@@ -285,6 +295,7 @@ class SnakeGame {
 		this.pausedText.statesToUpdateAt = new Set([GameState.PAUSED]);
 
 		this.entities = new Set();
+		this.bombs = new Set();
 		this.addEntity(new BackgroundEntity(0, "#C76B28"));
 		this.addEntity(this.background);
 		this.addEntity(this.scoreText);
@@ -355,7 +366,7 @@ class SnakeGame {
 	updateHTML(){
 		$("#scoreText").innerHTML = "Score: " + this.score;
 		$("#coinsText").innerHTML = "Coins: " + this.coins;
-		$("#bombsText").innerHTML = "Bombs: " + this.bombs.length;
+		$("#bombsText").innerHTML = "Bombs: " + this.bombs.size;
 		$("#timeText").innerHTML = "Time elapsed: " + this.convertTicksToString();
 		$("#appleText").innerHTML = "Apples Eaten: " + this.currentSnake.applesEaten;
 
@@ -446,8 +457,6 @@ class SnakeGame {
 		this.addEntity(new FoodEntity());
 		this.addEntity(new CoinEntity());
 
-		this.bombs = [];
-
 		this.score = 0;
 		this.ticks = 0;
 		this.coins = 250;
@@ -462,6 +471,8 @@ class SnakeGame {
                 entity.kill();
             }
         });
+
+		this.bombs.clear();
 
         if(this.score > this.savedValues.highscore){
 			this.savedValues.highscore = this.score;
@@ -558,6 +569,7 @@ class SnakeGame {
 		}
 
 		let entities = this.entities;
+		let bombs = this.bombs;
 		if(this.snakeCanvas.isBigEnough()){
 			if(this.gameState == GameState.RUNNING){
 				this.ticks++;
@@ -574,13 +586,17 @@ class SnakeGame {
 				if(this.nextBombTicks <= this.ticks){
 					let bomb = new BombEntity();
 					this.addEntity(bomb);
-					this.bombs.push(bomb);
+					bombs.add(bomb);
 					this.nextBombTicks = this.getRandFutureTicks(10, 30);
 
 					const MAX_BOMBS = 10;
-					if(this.bombs.length > MAX_BOMBS){
-						let oldBomb = this.bombs.shift();
-						oldBomb.kill();
+					if(bombs.size > MAX_BOMBS){
+						//Delete the oldest bomb, make sure the amount of bombs doesn't exceed MAX_BOMBS
+						for(let bomb of bombs.values()){
+							bombs.delete(bomb);
+							bomb.kill();
+							break;
+						}
 					}
 				}
 			}
@@ -589,6 +605,11 @@ class SnakeGame {
 			entities.forEach(entity => {
 				if (entity.dead) {
 					entities.delete(entity);
+
+					//Make sure to remove dead bomb from array too
+					if(entity instanceof BombEntity){
+						bombs.delete(entity);
+					}
 				} else if(entity.statesToUpdateAt.has(this.gameState)){
 					entity.update();
 				}
@@ -820,7 +841,7 @@ class Snake extends Entity {
 		this.snakeGrowthOnFeed = 4;
 		this.growthLeft = 0;
 		this.applesEaten = 0;
-		
+		this.canDefuseBombs = false;
 		this.snakeDirection = Direction.RIGHT;
 		this.snakeParts = [];
 
@@ -855,44 +876,44 @@ class Snake extends Entity {
 		return this.getHead().collidesWith(item);
 	}
 
-	moveForward() {
-		let snakeHead = this.getHead();
-		let direction = this.snakeDirection;
+	//TODO: Fix this algorithm. Make it also work with decimals
+	move(direction, amount){
+        for(let i = 0; i < amount; i++){
+            let snakeHead = this.getHead();
 
-		/*
-		 If the snake needs to grow then append a new part in front of it
-		 Otherwise move the butt to the front and making it the new head
-		 and leave updating the image to the paint() function
-		 */
-		if(this.growthLeft > 0){
-			let newPart = new SnakePartEntity(snakeHead.x, snakeHead.y);
+            /*
+             If the snake needs to grow then append a new part in front of it
+             Otherwise move the butt to the front and make it the new head
+             and leave updating the image to the paint() function
+             */
+            if(this.growthLeft > 0){
+                let newPart = new SnakePartEntity(snakeHead.x, snakeHead.y);
+                newPart.move(direction, 1);
 
-			newPart.move(direction, 1);
+                this.growthLeft--;
+                this.snakeParts.unshift(newPart);
+            } else {
+                let snakeButt = this.popButt();
 
-			this.growthLeft--;
-			this.snakeParts.unshift(newPart);
+                if (direction == Direction.LEFT) {
+                    snakeButt.x = snakeHead.x - 1;
+                    snakeButt.y = snakeHead.y;
+                } else if (direction == Direction.UP) {
+                    snakeButt.y = snakeHead.y - 1;
+                    snakeButt.x = snakeHead.x;
+                } else if (direction == Direction.RIGHT) {
+                    snakeButt.x = snakeHead.x + 1;
+                    snakeButt.y = snakeHead.y;
+                } else if (direction == Direction.DOWN) {
+                    snakeButt.y = snakeHead.y + 1;
+                    snakeButt.x = snakeHead.x;
+                }
 
-		} else {
-			let snakeButt = this.popButt();
-
-			if (direction == Direction.LEFT) {
-				snakeButt.x = snakeHead.x - 1;
-				snakeButt.y = snakeHead.y;
-			} else if (direction == Direction.UP) {
-				snakeButt.y = snakeHead.y - 1;
-				snakeButt.x = snakeHead.x;
-			} else if (direction == Direction.RIGHT) {
-				snakeButt.x = snakeHead.x + 1;
-				snakeButt.y = snakeHead.y;
-			} else if (direction == Direction.DOWN) {
-				snakeButt.y = snakeHead.y + 1;
-				snakeButt.x = snakeHead.x;
-			}
-
-			//Move the butt in front of the snake, making it the new head
-			this.snakeParts.unshift(snakeButt);
-		}
-	}
+                //Move the butt in front of the snake, making it the new head
+                this.snakeParts.unshift(snakeButt);
+            }
+        }
+    }
 
 	collidesWith(otherEntity) {
 		for (let i = 0; i < this.snakeParts.length; i++) {
@@ -906,7 +927,9 @@ class Snake extends Entity {
 
 	isInside(otherEntity) {
 		for (let i = 0; i < this.snakeParts.length; i++) {
-			if (this.snakeParts[i].isInside(otherEntity)) {
+            let part = this.snakeParts[i];
+
+			if (part.isInside(otherEntity)) {
 				return true;
 			}
 		}
@@ -994,6 +1017,11 @@ class Snake extends Entity {
 			}
 		}
 
+	update() {
+		let game = SnakeGame.getGame();
+		this.move(this.snakeDirection, 1);
+
+		let head = this.getHead();
 		this.snakeParts.forEach(part => {
 			//We avoid checking self collisions for most items
 			//The snake needs to do that though
@@ -1008,8 +1036,8 @@ class Snake extends Entity {
 	}
 
 	onCollide(otherEntity) {
-		if(otherEntity instanceof Snake || otherEntity instanceof BombEntity){
-			//this.kill();
+		if(otherEntity instanceof Snake || (otherEntity instanceof BombEntity && !this.canDefuseBombs)){
+			this.kill();
 		} else if(otherEntity instanceof FoodEntity){
 			otherEntity.kill();
 			this.grow(this.snakeGrowthOnFeed);
@@ -1044,6 +1072,10 @@ class PlayerSnake extends Snake {
 		if(otherEntity instanceof Snake && game.hasUpgrade("phase")) {
 			return;
 		} else if(otherEntity instanceof BombEntity){
+			if(this.canDefuseBombs){
+				otherEntity.kill();
+			}
+
 			game.unlockAchievement("boom");
 		}
 
