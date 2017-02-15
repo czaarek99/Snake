@@ -82,18 +82,10 @@ function generateToolTip(id, icon, html, container, displayType){
 	};
 }
 
-function $(selector){
-	if(selector.startsWith("#")){
-		return document.getElementById(selector.substring(1));
-	} else if(selector.startsWith(".")){
-		return document.getElementsByClassName(selector.substring(1));
- 	}
-}
-
 /**
  *
  * Enum classes
- *
+ * TODO: Make a base enum class (similar to java?)
  * */
 
 const directions = [];
@@ -756,10 +748,6 @@ class SnakeCanvas {
 		let minCanvasSize = 200;
 		return !(this.getRealHeight() < minCanvasSize || this.getRealWidth() < minCanvasSize);
 	}
-
-	getRatio(){
-
-	}
 }
 
 class Updateable {
@@ -942,7 +930,7 @@ class Snake extends Entity {
 	}
 
 	update() {
-		this.moveForward();
+		this.move(this.snakeDirection, 1);
 
 		let head = this.getHead();
 		let game = SnakeGame.getGame();
@@ -1017,11 +1005,6 @@ class Snake extends Entity {
 			}
 		}
 
-	update() {
-		let game = SnakeGame.getGame();
-		this.move(this.snakeDirection, 1);
-
-		let head = this.getHead();
 		this.snakeParts.forEach(part => {
 			//We avoid checking self collisions for most items
 			//The snake needs to do that though
