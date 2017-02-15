@@ -15,8 +15,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	//Run at 20 ticks
 	setInterval(() => {
-		game.run();
+		game.update();
 	}, 1000 / TICKRATE);
+
+	game.paint();
 
 	setInterval(() => {
 		game.save();
@@ -439,6 +441,7 @@ class SnakeGame {
         this.gameState = GameState.RUNNING;
 
 		this.currentSnake = new PlayerSnake();
+		this.currentSnake.update();
 		this.addEntity(this.currentSnake);
 		this.addEntity(new FoodEntity());
 		this.addEntity(new CoinEntity());
@@ -516,7 +519,32 @@ class SnakeGame {
 		Cookies.set("savedValues", this.savedValues, {expires: 365});
 	}
 
-	run() {
+	paint(){
+		let snCanvas = this.snakeCanvas;
+		let canvasCont = snCanvas.canvasCtx;
+
+		snCanvas.updateCanvasSize();
+		snCanvas.scaleNext();
+
+		if(this.snakeCanvas.isBigEnough()){
+			this.entities.forEach(entity => {
+				if(entity.statesToPaintAt.has(this.gameState)){
+					snCanvas.paintEntity(entity);
+				}
+			});
+		} else {
+			canvasCont.fillStyle = "black";
+			canvasCont.font = "10px Arial";
+			canvasCont.textAlign = "start";
+			canvasCont.fillText("Window too small", 0, 30);
+		}
+
+		window.requestAnimationFrame(() => {
+			SnakeGame.getGame().paint();
+		});
+	}
+
+	update() {
 		if(this.gameState != GameState.STOPPED){
 			this.updateHTML();
 
@@ -529,13 +557,8 @@ class SnakeGame {
 			this.achievements.forEach(update);
 		}
 
-		let snCanvas = this.snakeCanvas;
-		let canvasCont = snCanvas.canvasCtx;
-		snCanvas.updateCanvasSize();
-		snCanvas.scaleNext();
-
 		let entities = this.entities;
-		if(snCanvas.isBigEnough()){
+		if(this.snakeCanvas.isBigEnough()){
 			if(this.gameState == GameState.RUNNING){
 				this.ticks++;
 
@@ -571,19 +594,7 @@ class SnakeGame {
 				}
 			});
 
-			//Painting
 			this.scoreText.text = this.score;
-			entities.forEach(entity => {
-				if(entity.statesToPaintAt.has(this.gameState)){
-					snCanvas.paintEntity(entity);
-				}
-			});
-
-		} else {
-			canvasCont.fillStyle = "black";
-			canvasCont.font = "10px Arial";
-			canvasCont.textAlign = "start";
-			canvasCont.fillText("Window too small", 0, 30);
 		}
 	}
 
@@ -864,7 +875,6 @@ class Snake extends Entity {
 		} else {
 			let snakeButt = this.popButt();
 
-
 			if (direction == Direction.LEFT) {
 				snakeButt.x = snakeHead.x - 1;
 				snakeButt.y = snakeHead.y;
@@ -903,8 +913,16 @@ class Snake extends Entity {
 	}
 
 	paint(canvas) {
-		let game = SnakeGame.getGame();
+		this.snakeParts.forEach((part) => {
+			canvas.paintEntity(part);
+		});
+	}
+
+	update() {
+		this.moveForward();
+
 		let head = this.getHead();
+		let game = SnakeGame.getGame();
 		let butt = this.getButt();
 		let parts = this.snakeParts;
 		let beforeButtPart = parts[parts.length - 2];
@@ -974,16 +992,8 @@ class Snake extends Entity {
 					}
 				}
 			}
-
-			canvas.paintEntity(part);
 		}
-	}
 
-	update() {
-		let game = SnakeGame.getGame();
-		this.moveForward();
-
-		let head = this.getHead();
 		this.snakeParts.forEach(part => {
 			//We avoid checking self collisions for most items
 			//The snake needs to do that though
@@ -999,7 +1009,7 @@ class Snake extends Entity {
 
 	onCollide(otherEntity) {
 		if(otherEntity instanceof Snake || otherEntity instanceof BombEntity){
-			this.kill();
+			//this.kill();
 		} else if(otherEntity instanceof FoodEntity){
 			otherEntity.kill();
 			this.grow(this.snakeGrowthOnFeed);
@@ -1433,6 +1443,108 @@ class SliderSetting extends Setting {
 			sliderText.innerHTML = slider.value;
 		});
 
+	}
+}
+
+class Heap {
+
+	constructor(){
+		this.items = [];
+	}
+
+	add(item){
+		if(item.compareTo === undefined){
+			throw new Error("Item does not implement compareTo method!");
+		}
+
+		let items = this.items;
+		item.heapIndex = items.length - 1;
+		items.push(item);
+		this.sortUp(item);
+	}
+
+	getSize(){
+		return this.items.length;
+	}
+
+	contains(item){
+		if(item.heapIndex === undefined){
+			throw new Error("Item does not have a heapIndex!");
+		}
+
+		return this.items[item.heapIndex] == item;
+	}
+
+	popFirst(){
+		let items = this.items;
+		let firstItem = items[0];
+		let lastItem = items.pop();
+
+		lastItem.heapIndex = 0;
+		items[0] = lastItem;
+
+		this.sortDown(items[0]);
+
+		return firstItem;
+	}
+
+	update(item){
+		this.sortUp(item);
+	}
+
+	sortUp(item){
+		let items = this.items;
+		let parentIndex = (item.heapIndex - 1) / 2;
+
+		while(true){
+			let parentItem = items[parentIndex];
+
+			if(item.compareTo(parentItem) > 0){
+				this.swap(item, parentItem);
+			} else {
+				break;
+			}
+
+			parentIndex = (item.heapIndex - 1) / 2;
+		}
+	}
+
+	sortDown(item){
+		let items = this.items;
+
+		while(true){
+			let childIndexLeft = item.heapIndex * 2 + 1;
+			let childIndexRight = childIndexLeft++;
+			let swapIndex = 0;
+
+			if(childIndexLeft < items.length){
+				swapIndex = childIndexLeft;
+
+				if(childIndexRight < items.length){
+					if(items[childIndexLeft].compareTo(items[childIndexRight]) < 0){
+						swapIndex = childIndexRight;
+					}
+				}
+
+				if(item.compareTo(items[swapIndex]) < 0){
+					Swap(item, items[swapIndex]);
+				} else {
+					return;
+				}
+			} else {
+				return;
+			}
+		}
+	}
+
+	swap(firstItem, secondItem){
+		let items = this.items;
+		items[firstItem.heapIndex] = secondItem;
+		items[secondItem.heapIndex] = firstItem;
+
+		let firstItemIndex = firstItem.heapIndex;
+		firstItem.heapIndex = secondItem.heapIndex;
+		secondItem.heapIndex = firstItemIndex;
 	}
 
 }
