@@ -39,6 +39,10 @@ function $(selector){
     }
 }
 
+§function getRandomDec(min, max){
+    return (Math.random() * (max - min + 1)) + min;
+}
+
 function getRandomInt(min, max) {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -80,6 +84,16 @@ function generateToolTip(id, icon, html, container, displayType){
 		icon: document.getElementById(toolTipImgID),
 		customHtmlContainer: document.getElementById(htmlContainerID)
 	};
+}
+
+function create2DArray(rows) {
+    var arr = [];
+
+    for (var i = 0; i < rows; i++) {
+        arr[i] = [];
+    }
+
+    return arr;
 }
 
 /**
@@ -426,8 +440,8 @@ class SnakeGame {
 		while (respawn) {
 			respawn = false;
 
-			entity.x = getRandomInt(entity.width + 1, inside.width - entity.width - 1);
-			entity.y = getRandomInt(entity.height + 1, inside.height - entity.height - 1);
+			entity.x = getRandomDec(inside.x + entity.width, inside.width - entity.width);
+			entity.y = getRandomDec(inside.y + entity.height, inside.height - entity.height);
 
 			this.entities.forEach(collidingEntity => {
 				if (collidingEntity.collidable) {
@@ -1044,6 +1058,32 @@ class ComputerSnake {
 
 	update(){
 
+	    let game = SnakeGame.getGame();
+        let background = game.background;
+
+        let grid = create2DArray(Math.ceil(background.width) - background.x);
+
+        game.entities.forEach((entity) => {
+            if(entity.collidable){
+                let relativeX = entity.x - background.x;
+                let relativeY = entity.y - background.y;
+
+                let minGridX = Math.floor(relativeX);
+                let maxGridX = Math.ceil(relativeX + entity.width);
+
+                let minGridY = Math.floor(relativeY);
+                let maxGridY = Math.ceil(relativeY + entity.height);
+
+                for(let x = minGridX; x < maxGridX; x++){
+                    for(let y = minGridY; y < maxGridY; y++){
+                        grid[x][y] = entity;
+                    }
+                }
+            }
+        });
+
+
+
 	}
 
 }
@@ -1459,6 +1499,34 @@ class SliderSetting extends Setting {
 		});
 
 	}
+}
+
+class Node {
+
+    constructor(walkable, x, y, gridX, gridY){
+        this.walkable = walkable;
+        this.x = x;
+        this.y = y;
+        this.gridX = gridX;
+        this.gridY = gridY;
+
+        this.gCost = 0;
+        this.hCost = 0;
+        this.heapIndex = null;
+        this.parent = null;
+    }
+
+    get fCost(){
+        return this.gCost + this.hCost;
+    }
+
+    compareTo(nodeToCompare){
+        if(nodeToCompare.fCost > this.fCost){
+
+        } else {
+
+        }
+    }
 }
 
 class Heap {
