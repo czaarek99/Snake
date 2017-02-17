@@ -39,7 +39,7 @@ function $(selector){
     }
 }
 
-§function getRandomDec(min, max){
+function getRandomDec(min, max){
     return (Math.random() * (max - min + 1)) + min;
 }
 
