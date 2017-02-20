@@ -306,6 +306,7 @@ class SnakeGame {
 		this.addEntity(this.background);
 		this.addEntity(this.scoreText);
 		this.addEntity(this.pausedText);
+		this.addEntity(new ComputerSnake(10));
 
 		this.keycodeDirectionMap = {};
 		//WASD = Arrow Keys = Direction
@@ -423,10 +424,7 @@ class SnakeGame {
 				if (keycodeMap[keyCode] !== undefined) {
 					let newDirection = keycodeMap[keyCode];
 
-					let snake = this.currentSnake;
-					if (!snake.snakeDirection.isOpposite(newDirection)) {
-						snake.snakeDirection = newDirection;
-					}
+					this.currentSnake.setDirection(newDirection);
 				}
 			}
 
@@ -457,8 +455,7 @@ class SnakeGame {
 		this.updateNewGameOverlay(false);
         this.gameState = GameState.RUNNING;
 
-		this.currentSnake = new PlayerSnake();
-		this.currentSnake.update();
+		this.currentSnake = new PlayerSnake(2);
 		this.addEntity(this.currentSnake);
 		this.addEntity(new FoodEntity());
 		this.addEntity(new CoinEntity());
@@ -511,6 +508,10 @@ class SnakeGame {
 
 	getRandFutureTicks(minSeconds, maxSeconds){
 		return this.ticks + getRandomInt(minSeconds, maxSeconds) * TICKRATE;
+	}
+
+	getFutureTicks(seconds){
+		return this.ticks + seconds * TICKRATE;
 	}
 
 	hasUpgrade(id) {
@@ -835,10 +836,23 @@ class Entity extends Updateable {
 	}
 }
 
-class Snake extends Entity {
+class MultiPartEntity extends Entity {
 
-	constructor() {
+	constructor(x, y, width, height) {
 		super(-5000, -5000, -5000, -5000);
+	}
+
+	getEntities(){}
+
+	getPartAmount(){}
+
+	forEach(func){}
+}
+
+class Snake extends MultiPartEntity {
+
+	constructor(startY) {
+		super();
 		this.SNAKE_START_LENGT = 5;
 		this.snakeGrowthOnFeed = 4;
 		this.growthLeft = 0;
@@ -849,12 +863,20 @@ class Snake extends Entity {
 
 		//Initialize start snake
 		for (let i = this.SNAKE_START_LENGT + 2; i > 2; i--) {
-			this.snakeParts.push(new SnakePartEntity(i, 2))
+			this.snakeParts.push(new SnakePartEntity(i, startY, SnakeGame.getGame().snakeStraightImg))
 		}
 
 	}
 
-	getLength() {
+	getEntities(){
+		return this.snakeParts;
+	}
+
+	forEach(func){
+		this.snakeParts.forEach(func);
+	}
+
+	getPartAmount(){
 		return this.snakeParts.length;
 	}
 
@@ -938,7 +960,7 @@ class Snake extends Entity {
 	}
 
 	paint(canvas) {
-		this.snakeParts.forEach((part) => {
+		this.forEach((part) => {
 			canvas.paintEntity(part);
 		});
 	}
@@ -1033,14 +1055,23 @@ class Snake extends Entity {
 	}
 
 	onCollide(otherEntity) {
+		let game = SnakeGame.getGame();
+
 		if(otherEntity instanceof Snake || (otherEntity instanceof BombEntity && !this.canDefuseBombs)){
 			this.kill();
 		} else if(otherEntity instanceof FoodEntity){
 			otherEntity.kill();
 			this.grow(this.snakeGrowthOnFeed);
 			this.applesEaten++;
+			game.addEntity(new FoodEntity());
 		} else if(otherEntity instanceof CoinEntity){
 			otherEntity.kill();
+		}
+	}
+
+	setDirection(direction){
+		if(!this.snakeDirection.isOpposite(direction)){
+			this.snakeDirection = direction;
 		}
 	}
 
@@ -1054,38 +1085,161 @@ class Snake extends Entity {
 }
 
 //TODO: Create an AI
-class ComputerSnake {
+class ComputerSnake extends Snake {
 
-	update(){
-
-	    let game = SnakeGame.getGame();
-        let background = game.background;
-
-        let grid = create2DArray(Math.ceil(background.width) - background.x);
-
-        game.entities.forEach((entity) => {
-            if(entity.collidable){
-                let relativeX = entity.x - background.x;
-                let relativeY = entity.y - background.y;
-
-                let minGridX = Math.floor(relativeX);
-                let maxGridX = Math.ceil(relativeX + entity.width);
-
-                let minGridY = Math.floor(relativeY);
-                let maxGridY = Math.ceil(relativeY + entity.height);
-
-                for(let x = minGridX; x < maxGridX; x++){
-                    for(let y = minGridY; y < maxGridY; y++){
-                        grid[x][y] = entity;
-                    }
-                }
-            }
-        });
-
-
-
+	constructor(startY){
+		super(startY);
+		this.currentPath = [];
+		this.nextPathUpdate = 0;
 	}
 
+
+	//TODO: Split up this logic into multiple functions?
+	update(){
+		let game = SnakeGame.getGame();
+		let head = this.getHead();
+
+		if(game.ticks >= this.nextPathUpdate){
+			let background = game.background;
+
+			let gridWidth = Math.ceil(background.width);
+			let gridHeight = Math.ceil(background.height);
+			let grid = create2DArray(gridWidth);
+
+			let targetNode = null;
+			let startNode = null;
+
+			let insertIntoGrid = (entity) => {
+				let relativeX = entity.x - background.x;
+				let relativeY = entity.y - background.y;
+
+				if(entity instanceof FoodEntity){
+					let foodX = Math.floor(relativeX + entity.width / 2);
+					let foodY =  Math.floor(relativeY + entity.height / 2);
+					let foodNode = new Node(true, entity.x, entity.y, foodX, foodY);
+
+					targetNode = foodNode;
+					grid[foodX][foodY] = foodNode;
+				} else if(entity == head){
+					let headX = Math.floor(relativeX);
+					let headY = Math.floor(relativeY);
+					let headNode = new Node(false, entity.x, entity.y, headX, headY);
+
+					startNode = headNode;
+					grid[headX][headY] = headNode;
+				} else {
+					let minGridX = Math.floor(relativeX);
+					let maxGridX = Math.ceil(relativeX + entity.width);
+
+					let minGridY = Math.floor(relativeY);
+					let maxGridY = Math.ceil(relativeY + entity.height);
+
+					let walkable = false;
+					//TODO: Better way? Field in every class maybe?
+					if(entity instanceof CoinEntity){
+						walkable = true;
+					}
+
+					for(let x = minGridX; x < maxGridX; x++){
+						for(let y = minGridY; y < maxGridY; y++){
+							grid[x][y] = new Node(walkable, entity.x, entity.y, x, y)
+						}
+					}
+				}
+			};
+
+			game.entities.forEach((entity) => {
+				if(entity.collidable){
+					if(entity instanceof MultiPartEntity){
+						entity.forEach(insertIntoGrid);
+					} else if(!(entity instanceof BackgroundEntity)){
+						insertIntoGrid(entity);
+					}
+				}
+			});
+
+			if (targetNode != null) {
+				for (let x = 0; x < gridWidth; x++) {
+					for (let y = 0; y < gridHeight; y++) {
+						let currentGridItem = grid[x][y];
+						if (currentGridItem === undefined) {
+							grid[x][y] = new Node(true, x + background.x, y + background.y, x, y);
+						}
+					}
+				}
+
+				let getDistance = (firstNode, secondNode) => {
+					let horizontalMovesNeeded = Math.abs(firstNode.gridX - secondNode.gridX);
+					let verticalMovesNeeded = Math.abs(firstNode.gridY - secondNode.gridY);
+					return horizontalMovesNeeded + verticalMovesNeeded;
+				};
+
+				let openSet = new Heap();
+				let closedSet = new Set();
+				openSet.add(startNode);
+
+				while (openSet.getSize() > 0) {
+					let currentNode = openSet.popFirst();
+					closedSet.add(currentNode);
+					if (currentNode == targetNode) {
+						this.currentPath = [];
+						let retracingNode = targetNode;
+						while (retracingNode != startNode) {
+							this.currentPath.push(retracingNode);
+							retracingNode = retracingNode.parent;
+						}
+						this.currentPath.reverse();
+						this.nextPathUpdate = game.getFutureTicks(1);
+						break;
+					}
+					let neighbours = [];
+					for (let gridIndex = -1; gridIndex < 2; gridIndex += 2) {
+						neighbours.push(grid[currentNode.gridX + gridIndex][currentNode.gridY]);
+						neighbours.push(grid[currentNode.gridX][currentNode.gridY + gridIndex]);
+					}
+					for (let nIndex = 0; nIndex < neighbours.length; nIndex++) {
+						let neighbour = neighbours[nIndex];
+						if (!neighbour.walkable || closedSet.has(neighbour)) {
+							continue;
+						}
+						let newMovementCost = currentNode.gCost + getDistance(currentNode, neighbour);
+						if (newMovementCost < neighbour.gCost || !openSet.contains(neighbour)) {
+							neighbour.gCost = newMovementCost;
+							neighbour.hCost = getDistance(neighbour, targetNode);
+							neighbour.parent = currentNode;
+							if (!openSet.contains(neighbour)) {
+								openSet.add(neighbour);
+							} else {
+								openSet.update(neighbour);
+							}
+						}
+					}
+				}
+			}
+		}
+		if (this.currentPath.length > 0){
+			let nextNode = this.currentPath.shift();
+			if(head.x < nextNode.x){
+				this.setDirection(Direction.RIGHT);
+			} else if(head.x > nextNode.x){
+				this.setDirection(Direction.LEFT);
+			} else if(head.y < nextNode.y){
+				this.setDirection(Direction.DOWN);
+			} else if(head.y > nextNode.y){
+				this.setDirection(Direction.UP);
+			}
+		}
+
+		super.update();
+	}
+
+	onCollide(otherEntity){
+		super.onCollide(otherEntity);
+
+		if(otherEntity instanceof FoodEntity){
+			this.nextPathUpdate = 0;
+		}
+	}
 }
 
 class PlayerSnake extends Snake {
@@ -1110,7 +1264,6 @@ class PlayerSnake extends Snake {
 				game.score++;
 			}
 
-			game.addEntity(new FoodEntity());
 			if (getRandomInt(0, 1) > 0) {
 				game.addEntity(new CoinEntity());
 			}
@@ -1505,8 +1658,8 @@ class Node {
 
     constructor(walkable, x, y, gridX, gridY){
         this.walkable = walkable;
-        this.x = x;
-        this.y = y;
+		this.x = x;
+		this.y = y;
         this.gridX = gridX;
         this.gridY = gridY;
 
@@ -1520,12 +1673,25 @@ class Node {
         return this.gCost + this.hCost;
     }
 
+	//TODO: Use enums instead of -1, 0 and 1?
     compareTo(nodeToCompare){
-        if(nodeToCompare.fCost > this.fCost){
+		let fCost = this.fCost;
 
+        if(fCost < nodeToCompare.fCost){
+			return 1;
+        } else if(fCost > nodeToCompare.fCost){
+			return -1;
         } else {
+			let hCost = this.hCost;
 
-        }
+			if(hCost < nodeToCompare.hCost){
+				return 1;
+			} else if(hCost > nodeToCompare.hCost){
+				return -1;
+			} else {
+				return 0;
+			}
+		}
     }
 }
 
@@ -1541,7 +1707,7 @@ class Heap {
 		}
 
 		let items = this.items;
-		item.heapIndex = items.length - 1;
+		item.heapIndex = items.length;
 		items.push(item);
 		this.sortUp(item);
 	}
@@ -1555,40 +1721,60 @@ class Heap {
 			throw new Error("Item does not have a heapIndex!");
 		}
 
+		if(item.heapIndex == null){
+			return false;
+		}
+
 		return this.items[item.heapIndex] == item;
 	}
 
 	popFirst(){
 		let items = this.items;
 		let firstItem = items[0];
-		let lastItem = items.pop();
 
+		if(items.length == 1){
+			this.items = [];
+			return firstItem;
+		}
+
+		let lastItem = items.pop();
 		lastItem.heapIndex = 0;
 		items[0] = lastItem;
 
 		this.sortDown(items[0]);
-
 		return firstItem;
 	}
 
+	//TODO: Check if this works properly 100% of the time
 	update(item){
 		this.sortUp(item);
+		this.sortDown(item);
 	}
 
 	sortUp(item){
-		let items = this.items;
-		let parentIndex = (item.heapIndex - 1) / 2;
+		if(item.heapIndex > 0){
+			let items = this.items;
 
-		while(true){
-			let parentItem = items[parentIndex];
+			let parentIndex = null;
+			let updateParentIndex = () => {
+				parentIndex = Math.floor((item.heapIndex - 1) / 2);
+			};
 
-			if(item.compareTo(parentItem) > 0){
-				this.swap(item, parentItem);
-			} else {
-				break;
+			updateParentIndex();
+			while(true){
+				let parentItem = items[parentIndex];
+
+				if(item.compareTo(parentItem) > 0){
+					this.swap(item, parentItem);
+				} else {
+					break;
+				}
+
+				updateParentIndex();
+				if(item.heapIndex <= 0){
+					break;
+				}
 			}
-
-			parentIndex = (item.heapIndex - 1) / 2;
 		}
 	}
 
@@ -1610,7 +1796,7 @@ class Heap {
 				}
 
 				if(item.compareTo(items[swapIndex]) < 0){
-					Swap(item, items[swapIndex]);
+					this.swap(item, items[swapIndex]);
 				} else {
 					return;
 				}
