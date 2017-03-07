@@ -234,7 +234,6 @@ class SnakeGame {
 		this.addEntity(this.background);
 		this.addEntity(this.scoreText);
 		this.addEntity(this.pausedText);
-		this.addEntity(new ComputerSnake(10));
 
 		this.keycodeDirectionMap = {};
 		//WASD = Arrow Keys = Direction
@@ -387,6 +386,8 @@ class SnakeGame {
 		this.addEntity(this.currentSnake);
 		this.addEntity(new FoodEntity());
 		this.addEntity(new CoinEntity());
+		//TODO: Just testing the AI, remove when done
+		this.addEntity(new ComputerSnake(4));
 
 		this.score = 0;
 		this.ticks = 0;
@@ -509,6 +510,20 @@ class SnakeGame {
 			if(this.gameState == GameState.RUNNING){
 				this.ticks++;
 
+				//Update living entities, remove dead ones
+				entities.forEach(entity => {
+					if (entity.dead) {
+						entities.delete(entity);
+
+						//Make sure to remove dead bomb from array too
+						if(entity instanceof BombEntity){
+							bombs.delete(entity);
+						}
+					} else if(entity.statesToUpdateAt.has(this.gameState)){
+						entity.update();
+					}
+				});
+
 				//Check for collisions, avoid checking self collisions
 				entities.forEach(entity1 => {
 					entities.forEach(entity2 => {
@@ -536,19 +551,7 @@ class SnakeGame {
 				}
 			}
 
-			//Update living entities, remove dead ones
-			entities.forEach(entity => {
-				if (entity.dead) {
-					entities.delete(entity);
 
-					//Make sure to remove dead bomb from array too
-					if(entity instanceof BombEntity){
-						bombs.delete(entity);
-					}
-				} else if(entity.statesToUpdateAt.has(this.gameState)){
-					entity.update();
-				}
-			});
 
 			this.scoreText.text = this.score;
 		}
@@ -714,23 +717,51 @@ class Entity extends Updateable {
 	}
 
 	collidesWith(otherEntity) {
-		//https://silentmatt.com/rectangle-intersection/
-		let ax2 = this.x + this.width;
-		let ay2 = this.y + this.height;
+		let entitiesToCheck = this.getEntitiesToCheck(otherEntity);
 
-		let bx2 = otherEntity.x + otherEntity.width;
-		let by2 = otherEntity.y + otherEntity.height;
+		for(let i = 0; i < entitiesToCheck.length; i++){
+			let entityToCheck = entitiesToCheck[i];
 
-		return this.x < bx2 && ax2 > otherEntity.x && this.y < by2 && ay2 > otherEntity.y;
+			//https://silentmatt.com/rectangle-intersection/
+			let ax2 = this.x + this.width;
+			let ay2 = this.y + this.height;
+
+			let bx2 = entityToCheck.x + entityToCheck.width;
+			let by2 = entityToCheck.y + entityToCheck.height;
+
+			if(this.x < bx2 && ax2 > otherEntity.x && this.y < by2 && ay2 > otherEntity.y){
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	isInside(otherEntity) {
-		let otherRightX = otherEntity.width + otherEntity.x;
-		let otherBottomY = otherEntity.height + otherEntity.y;
+		let entitiesToCheck = this.getEntitiesToCheck(otherEntity);
 
-		return this.x <= otherRightX && this.y <= otherBottomY
-			&& this.x + this.width <= otherRightX && this.y + this.height <= otherBottomY
-			&& this.x >= otherEntity.x && this.y >= otherEntity.y;
+		for(let i = 0; i < entitiesToCheck.length; i++){
+			let entityToCheck = entitiesToCheck[i];
+
+			let otherRightX = entityToCheck.width + entityToCheck.x;
+			let otherBottomY = entityToCheck.height + entityToCheck.y;
+
+			if(this.x <= otherRightX && this.y <= otherBottomY
+				&& this.x + this.width <= otherRightX && this.y + this.height <= otherBottomY
+				&& this.x >= otherEntity.x && this.y >= otherEntity.y){
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	getEntitiesToCheck(entity){
+		if(entity instanceof MultiPartEntity){
+			return entity.getEntities();
+		} else {
+			return [entity];
+		}
 	}
 
 	kill() {
@@ -775,6 +806,19 @@ class MultiPartEntity extends Entity {
 	getPartAmount(){}
 
 	forEach(func){}
+
+	collidesWith(otherEntity){
+		let entities = this.getEntities();
+		for(let i = 0; i < entities.length; i++){
+			let entity = entities[i];
+
+			if(entity.collidesWith(otherEntity)){
+				return true;
+			}
+		}
+
+		return false;
+	}
 }
 
 class Snake extends MultiPartEntity {
@@ -866,16 +910,6 @@ class Snake extends MultiPartEntity {
             }
         }
     }
-
-	collidesWith(otherEntity) {
-		for (let i = 0; i < this.snakeParts.length; i++) {
-			let part = this.snakeParts[i];
-
-			if (part.collidesWith(otherEntity)) {
-				return true;
-			}
-		}
-	}
 
 	isInside(otherEntity) {
 		for (let i = 0; i < this.snakeParts.length; i++) {
@@ -985,7 +1019,7 @@ class Snake extends MultiPartEntity {
 	onCollide(otherEntity) {
 		let game = SnakeGame.getGame();
 
-		if(otherEntity instanceof Snake || (otherEntity instanceof BombEntity && !this.canDefuseBombs)){
+		if(otherEntity instanceof BombEntity && !this.canDefuseBombs){
 			this.kill();
 		} else if(otherEntity instanceof FoodEntity){
 			otherEntity.kill();
@@ -994,6 +1028,10 @@ class Snake extends MultiPartEntity {
 			game.addEntity(new FoodEntity());
 		} else if(otherEntity instanceof CoinEntity){
 			otherEntity.kill();
+		} else if(otherEntity instanceof Snake){
+			if(this.headCollidesWith(otherEntity)){
+				this.kill();
+			}
 		}
 	}
 
@@ -1019,8 +1057,8 @@ class ComputerSnake extends Snake {
 		super(startY);
 		this.currentPath = [];
 		this.nextPathUpdate = 0;
+		this.NOW = 0;
 	}
-
 
 	//TODO: Split up this logic into multiple functions?
 	update(){
@@ -1117,7 +1155,7 @@ class ComputerSnake extends Snake {
 							retracingNode = retracingNode.parent;
 						}
 						this.currentPath.reverse();
-						this.nextPathUpdate = game.getFutureTicks(1);
+						this.nextPathUpdate = game.getFutureTicks(0.5);
 						break;
 					}
 					let neighbours = [];
@@ -1143,8 +1181,12 @@ class ComputerSnake extends Snake {
 						}
 					}
 				}
+			} else {
+				this.nextPathUpdate = this.NOW;
+				this.currentPath = [];
 			}
 		}
+
 		if (this.currentPath.length > 0){
 			let nextNode = this.currentPath.shift();
 			if(head.x < nextNode.x){
@@ -1156,6 +1198,8 @@ class ComputerSnake extends Snake {
 			} else if(head.y > nextNode.y){
 				this.setDirection(Direction.UP);
 			}
+		} else {
+			this.nextPathUpdate = this.NOW;
 		}
 
 		super.update();
@@ -1165,7 +1209,7 @@ class ComputerSnake extends Snake {
 		super.onCollide(otherEntity);
 
 		if(otherEntity instanceof FoodEntity){
-			this.nextPathUpdate = 0;
+			this.nextPathUpdate = this.NOW
 		}
 	}
 }
