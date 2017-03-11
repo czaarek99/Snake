@@ -152,6 +152,9 @@ class SnakeGame {
 		};
 
 		//Upgrades
+		addWithID(this.upgrades, new Upgrade("ai", "Computer Snake", "Spawn a snake to help you out with collecting apples", this.snakeHeadImg, 200, () => {
+			this.addEntity(new ComputerSnake(5));
+		} , null));
 		addWithID(this.upgrades, new Upgrade("bombsquad", "Bomb Squad", "Defuse any bomb you run into", this.bombImg, 125, () => {
 			this.currentSnake.canDefuseBombs = true;
 		}, null));
@@ -170,7 +173,7 @@ class SnakeGame {
 			});
 		}, null));
 		addWithID(this.purchases, new Purchase("cut", "Cut in Half", "Cuts your snake in half", loadImage("scissors.png"), 10, () => {
-			let length = this.currentSnake.snakeParts.length;
+			let length = this.currentSnake.getChildAmount();
 
 			if (length > 2) {
 				for (let i = Math.floor(length / 2); i < length; i++) {
@@ -178,7 +181,7 @@ class SnakeGame {
 				}
 			}
 		}, (purchase) => {
-			let length = this.currentSnake.snakeParts.length;
+			let length = this.currentSnake.getChildAmount();
 
 			purchase.disabled = length <= 10;
 		}));
@@ -214,6 +217,7 @@ class SnakeGame {
 
 		let snCanvas = this.snakeCanvas = new SnakeCanvas();
 		this.background = new BackgroundEntity(1, "#1684AE");
+		this.deathZoneBackground = new BackgroundEntity(0, "#C76B28");
 
 		let centeredTextUpdate = function(){
 			this.x = snCanvas.getScaledWidth() / 2;
@@ -229,8 +233,9 @@ class SnakeGame {
 		this.pausedText.statesToUpdateAt = new Set([GameState.PAUSED]);
 
 		this.entities = new Set();
+		this.currentFood = null;
 		this.bombs = new Set();
-		this.addEntity(new BackgroundEntity(0, "#C76B28"));
+		this.addEntity(this.deathZoneBackground);
 		this.addEntity(this.background);
 		this.addEntity(this.scoreText);
 		this.addEntity(this.pausedText);
@@ -342,6 +347,16 @@ class SnakeGame {
 		this.entities.add(entity);
 	}
 
+	spawnNewFood(){
+		if(this.currentFood != null){
+			this.currentFood.kill();
+		}
+
+		let newFood = new FoodEntity();
+		this.currentFood = newFood;
+		this.addEntity(newFood);
+	}
+
 	onKeyDown(keyCode) {
 		if(this.gameState == GameState.RUNNING){
 			//Prevent buttonmashing
@@ -384,15 +399,15 @@ class SnakeGame {
 
 		this.currentSnake = new PlayerSnake(2);
 		this.addEntity(this.currentSnake);
-		this.addEntity(new FoodEntity());
 		this.addEntity(new CoinEntity());
-		//TODO: Just testing the AI, remove when done
-		this.addEntity(new ComputerSnake(4));
+		this.spawnNewFood();
 
 		this.score = 0;
 		this.ticks = 0;
 		this.coins = 250;
 		this.nextBombTicks = this.getRandFutureTicks(5, 10);
+
+		this.update();
 	}
 
 	stopGame(){
@@ -507,27 +522,29 @@ class SnakeGame {
 		let entities = this.entities;
 		let bombs = this.bombs;
 		if(this.snakeCanvas.isBigEnough()){
+			//Update living entities, remove dead ones
+			entities.forEach(entity => {
+				if (entity.dead) {
+					entities.delete(entity);
+
+					//Make sure to remove dead bomb from array too
+					if(entity instanceof BombEntity){
+						bombs.delete(entity);
+					}
+				} else if(entity.statesToUpdateAt.has(this.gameState)){
+					entity.update();
+				}
+			});
+
 			if(this.gameState == GameState.RUNNING){
 				this.ticks++;
-
-				//Update living entities, remove dead ones
-				entities.forEach(entity => {
-					if (entity.dead) {
-						entities.delete(entity);
-
-						//Make sure to remove dead bomb from array too
-						if(entity instanceof BombEntity){
-							bombs.delete(entity);
-						}
-					} else if(entity.statesToUpdateAt.has(this.gameState)){
-						entity.update();
-					}
-				});
 
 				//Check for collisions, avoid checking self collisions
 				entities.forEach(entity1 => {
 					entities.forEach(entity2 => {
-						if (entity1 != entity2 && entity1.collidable && entity2.collidable && entity1.collidesWith(entity2)) {
+						if (entity1 != entity2 &&
+							!entity1.dead && !entity2.dead &&
+							entity1.collidable && entity2.collidable && entity1.collidesWith(entity2)) {
 							entity1.onCollide(entity2);
 						}
 					})
@@ -550,8 +567,6 @@ class SnakeGame {
 					}
 				}
 			}
-
-
 
 			this.scoreText.text = this.score;
 		}
@@ -729,7 +744,7 @@ class Entity extends Updateable {
 			let bx2 = entityToCheck.x + entityToCheck.width;
 			let by2 = entityToCheck.y + entityToCheck.height;
 
-			if(this.x < bx2 && ax2 > otherEntity.x && this.y < by2 && ay2 > otherEntity.y){
+			if(this.x < bx2 && ax2 > entityToCheck.x && this.y < by2 && ay2 > entityToCheck.y){
 				return true;
 			}
 		}
@@ -748,7 +763,7 @@ class Entity extends Updateable {
 
 			if(this.x <= otherRightX && this.y <= otherBottomY
 				&& this.x + this.width <= otherRightX && this.y + this.height <= otherBottomY
-				&& this.x >= otherEntity.x && this.y >= otherEntity.y){
+				&& this.x >= entityToCheck.x && this.y >= entityToCheck.y){
 				return true;
 			}
 		}
@@ -758,7 +773,7 @@ class Entity extends Updateable {
 
 	getEntitiesToCheck(entity){
 		if(entity instanceof MultiPartEntity){
-			return entity.getEntities();
+			return entity.getChildren();
 		} else {
 			return [entity];
 		}
@@ -768,11 +783,9 @@ class Entity extends Updateable {
 		this.dead = true;
 	}
 
-	paint(canvas) {
-	}
+	paint(canvas) {}
 
-	onCollide(otherEntity) {
-	}
+	onCollide(otherEntity) {}
 
 	move(direction, amount){
 		direction.applyMovement(this, amount);
@@ -799,16 +812,23 @@ class MultiPartEntity extends Entity {
 
 	constructor(x, y, width, height) {
 		super(-5000, -5000, -5000, -5000);
+		this.children = [];
 	}
 
-	getEntities(){}
+	getChildren(){
+		return this.children;
+	}
 
-	getPartAmount(){}
+	getChildAmount(){
+		return this.children.length;
+	}
 
-	forEach(func){}
+	forEachChild(func){
+		this.children.forEach(func);
+	}
 
 	collidesWith(otherEntity){
-		let entities = this.getEntities();
+		let entities = this.getChildren();
 		for(let i = 0; i < entities.length; i++){
 			let entity = entities[i];
 
@@ -831,37 +851,24 @@ class Snake extends MultiPartEntity {
 		this.applesEaten = 0;
 		this.canDefuseBombs = false;
 		this.snakeDirection = Direction.RIGHT;
-		this.snakeParts = [];
 
 		//Initialize start snake
 		for (let i = this.SNAKE_START_LENGT + 2; i > 2; i--) {
-			this.snakeParts.push(new SnakePartEntity(i, startY, SnakeGame.getGame().snakeStraightImg))
+			this.children.push(new SnakePartEntity(i, startY, SnakeGame.getGame().snakeStraightImg))
 		}
 
 	}
 
-	getEntities(){
-		return this.snakeParts;
-	}
-
-	forEach(func){
-		this.snakeParts.forEach(func);
-	}
-
-	getPartAmount(){
-		return this.snakeParts.length;
-	}
-
 	getHead() {
-		return this.snakeParts[0];
+		return this.children[0];
 	}
 
 	getButt() {
-		return this.snakeParts[this.snakeParts.length - 1];
+		return this.children[this.getChildAmount() - 1];
 	}
 
 	popButt() {
-		return this.snakeParts.pop();
+		return this.children.pop();
 	}
 
 	grow(parts = 1) {
@@ -887,7 +894,7 @@ class Snake extends MultiPartEntity {
                 newPart.move(direction, 1);
 
                 this.growthLeft--;
-                this.snakeParts.unshift(newPart);
+                this.children.unshift(newPart);
             } else {
                 let snakeButt = this.popButt();
 
@@ -906,14 +913,14 @@ class Snake extends MultiPartEntity {
                 }
 
                 //Move the butt in front of the snake, making it the new head
-                this.snakeParts.unshift(snakeButt);
+                this.children.unshift(snakeButt);
             }
         }
     }
 
 	isInside(otherEntity) {
-		for (let i = 0; i < this.snakeParts.length; i++) {
-            let part = this.snakeParts[i];
+		for (let i = 0; i < this.getChildAmount(); i++) {
+            let part = this.children[i];
 
 			if (part.isInside(otherEntity)) {
 				return true;
@@ -922,7 +929,7 @@ class Snake extends MultiPartEntity {
 	}
 
 	paint(canvas) {
-		this.forEach((part) => {
+		this.forEachChild((part) => {
 			canvas.paintEntity(part);
 		});
 	}
@@ -933,7 +940,7 @@ class Snake extends MultiPartEntity {
 		let head = this.getHead();
 		let game = SnakeGame.getGame();
 		let butt = this.getButt();
-		let parts = this.snakeParts;
+		let parts = this.children;
 		let beforeButtPart = parts[parts.length - 2];
 
 		//Handle rotations for head and butt
@@ -1003,7 +1010,7 @@ class Snake extends MultiPartEntity {
 			}
 		}
 
-		this.snakeParts.forEach(part => {
+		this.forEachChild(part => {
 			//We avoid checking self collisions for most items
 			//The snake needs to do that though
 			if (part != head && this.headCollidesWith(part)) {
@@ -1022,13 +1029,13 @@ class Snake extends MultiPartEntity {
 		if(otherEntity instanceof BombEntity && !this.canDefuseBombs){
 			this.kill();
 		} else if(otherEntity instanceof FoodEntity){
-			otherEntity.kill();
 			this.grow(this.snakeGrowthOnFeed);
 			this.applesEaten++;
-			game.addEntity(new FoodEntity());
+			game.spawnNewFood();
 		} else if(otherEntity instanceof CoinEntity){
 			otherEntity.kill();
-		} else if(otherEntity instanceof Snake){
+		} else if(otherEntity instanceof Snake && !game.hasUpgrade("phase")){
+			//TODO: Why is this here?
 			if(this.headCollidesWith(otherEntity)){
 				this.kill();
 			}
@@ -1056,161 +1063,155 @@ class ComputerSnake extends Snake {
 	constructor(startY){
 		super(startY);
 		this.currentPath = [];
-		this.nextPathUpdate = 0;
-		this.NOW = 0;
 	}
 
-	//TODO: Split up this logic into multiple functions?
 	update(){
+		//TODO: Make this faster
 		let game = SnakeGame.getGame();
 		let head = this.getHead();
 
-		if(game.ticks >= this.nextPathUpdate){
-			let background = game.background;
+		let background = game.background;
+		let gridWidth = Math.ceil(background.width);
+		let gridHeight = Math.ceil(background.height);
+		let grid = create2DArray(gridWidth);
 
-			let gridWidth = Math.ceil(background.width);
-			let gridHeight = Math.ceil(background.height);
-			let grid = create2DArray(gridWidth);
+		let getRelativeCoords = (entity) => {
+			return {
+				x: entity.x - background.x,
+				y: entity.y - background.y
+			};
+		};
 
-			let targetNode = null;
-			let startNode = null;
+		let insertIntoGrid = (entity, walkable) => {
+			let relative = getRelativeCoords(entity);
 
-			let insertIntoGrid = (entity) => {
-				let relativeX = entity.x - background.x;
-				let relativeY = entity.y - background.y;
+			let minGridX = Math.floor(relative.x);
+			let maxGridX = Math.ceil(relative.x + entity.width);
 
-				if(entity instanceof FoodEntity){
-					let foodX = Math.floor(relativeX + entity.width / 2);
-					let foodY =  Math.floor(relativeY + entity.height / 2);
-					let foodNode = new Node(true, entity.x, entity.y, foodX, foodY);
+			let minGridY = Math.floor(relative.y);
+			let maxGridY = Math.ceil(relative.y + entity.height);
 
-					targetNode = foodNode;
-					grid[foodX][foodY] = foodNode;
-				} else if(entity == head){
-					let headX = Math.floor(relativeX);
-					let headY = Math.floor(relativeY);
-					let headNode = new Node(false, entity.x, entity.y, headX, headY);
+			for (let x = minGridX; x < maxGridX; x++) {
+				for (let y = minGridY; y < maxGridY; y++) {
+					grid[x][y] = new Node(walkable, entity.x, entity.y, x, y)
+				}
+			}
+		};
 
-					startNode = headNode;
-					grid[headX][headY] = headNode;
-				} else {
-					let minGridX = Math.floor(relativeX);
-					let maxGridX = Math.ceil(relativeX + entity.width);
+		game.entities.forEach((entity) => {
+			if (entity.collidable) {
+				if(entity instanceof MultiPartEntity){
+					entity.forEachChild((entity) => {
+						insertIntoGrid(entity, false);
+					});
 
-					let minGridY = Math.floor(relativeY);
-					let maxGridY = Math.ceil(relativeY + entity.height);
-
+				} else if (!(entity instanceof BackgroundEntity) && !(entity instanceof FoodEntity)) {
 					let walkable = false;
-					//TODO: Better way? Field in every class maybe?
+
+					//TODO: Somehow make this a variable that makes sense
 					if(entity instanceof CoinEntity){
 						walkable = true;
 					}
 
-					for(let x = minGridX; x < maxGridX; x++){
-						for(let y = minGridY; y < maxGridY; y++){
-							grid[x][y] = new Node(walkable, entity.x, entity.y, x, y)
-						}
-					}
+					insertIntoGrid(entity, walkable);
 				}
-			};
+			}
+		});
 
-			game.entities.forEach((entity) => {
-				if(entity.collidable){
-					if(entity instanceof MultiPartEntity){
-						entity.forEach(insertIntoGrid);
-					} else if(!(entity instanceof BackgroundEntity)){
-						insertIntoGrid(entity);
-					}
+		//The head is our start
+		let headRelativeCoords = getRelativeCoords(head);
+		headRelativeCoords.x = Math.floor(headRelativeCoords.x);
+		headRelativeCoords.y = Math.floor(headRelativeCoords.y);
+
+		let startNode = new Node(false, head.x, head.y, headRelativeCoords.x, headRelativeCoords.y);
+		grid[headRelativeCoords.x][headRelativeCoords.y] = startNode;
+
+		//The food is our target
+		let currentFood = game.currentFood;
+		let foodRelativeCoords = getRelativeCoords(currentFood);
+		foodRelativeCoords.x = Math.floor(foodRelativeCoords.x + currentFood.width);
+		foodRelativeCoords.y = Math.floor(foodRelativeCoords.y + currentFood.height);
+
+		let targetNode = new Node(true, currentFood.x, currentFood.y, foodRelativeCoords.x, foodRelativeCoords.y);
+		grid[foodRelativeCoords.x][foodRelativeCoords.y] = targetNode;
+
+		//Fill up the rest of the grid with empty walkable nodes
+		for (let x = 0; x < gridWidth; x++) {
+			for (let y = 0; y < gridHeight; y++) {
+				let currentGridItem = grid[x][y];
+				if (currentGridItem === undefined) {
+					grid[x][y] = new Node(true, x + background.x, y + background.y, x, y);
 				}
-			});
-
-			if (targetNode != null) {
-				for (let x = 0; x < gridWidth; x++) {
-					for (let y = 0; y < gridHeight; y++) {
-						let currentGridItem = grid[x][y];
-						if (currentGridItem === undefined) {
-							grid[x][y] = new Node(true, x + background.x, y + background.y, x, y);
-						}
-					}
-				}
-
-				let getDistance = (firstNode, secondNode) => {
-					let horizontalMovesNeeded = Math.abs(firstNode.gridX - secondNode.gridX);
-					let verticalMovesNeeded = Math.abs(firstNode.gridY - secondNode.gridY);
-					return horizontalMovesNeeded + verticalMovesNeeded;
-				};
-
-				let openSet = new Heap();
-				let closedSet = new Set();
-				openSet.add(startNode);
-
-				while (openSet.getSize() > 0) {
-					let currentNode = openSet.popFirst();
-					closedSet.add(currentNode);
-					if (currentNode == targetNode) {
-						this.currentPath = [];
-						let retracingNode = targetNode;
-						while (retracingNode != startNode) {
-							this.currentPath.push(retracingNode);
-							retracingNode = retracingNode.parent;
-						}
-						this.currentPath.reverse();
-						this.nextPathUpdate = game.getFutureTicks(0.5);
-						break;
-					}
-					let neighbours = [];
-					for (let gridIndex = -1; gridIndex < 2; gridIndex += 2) {
-						neighbours.push(grid[currentNode.gridX + gridIndex][currentNode.gridY]);
-						neighbours.push(grid[currentNode.gridX][currentNode.gridY + gridIndex]);
-					}
-					for (let nIndex = 0; nIndex < neighbours.length; nIndex++) {
-						let neighbour = neighbours[nIndex];
-						if (!neighbour.walkable || closedSet.has(neighbour)) {
-							continue;
-						}
-						let newMovementCost = currentNode.gCost + getDistance(currentNode, neighbour);
-						if (newMovementCost < neighbour.gCost || !openSet.contains(neighbour)) {
-							neighbour.gCost = newMovementCost;
-							neighbour.hCost = getDistance(neighbour, targetNode);
-							neighbour.parent = currentNode;
-							if (!openSet.contains(neighbour)) {
-								openSet.add(neighbour);
-							} else {
-								openSet.update(neighbour);
-							}
-						}
-					}
-				}
-			} else {
-				this.nextPathUpdate = this.NOW;
-				this.currentPath = [];
 			}
 		}
 
-		if (this.currentPath.length > 0){
+		let getDistance = (firstNode, secondNode) => {
+			let horizontalMovesNeeded = Math.abs(firstNode.gridX - secondNode.gridX);
+			let verticalMovesNeeded = Math.abs(firstNode.gridY - secondNode.gridY);
+			return horizontalMovesNeeded + verticalMovesNeeded;
+		};
+
+		let openSet = new Heap();
+		let closedSet = new Set();
+		openSet.add(startNode);
+
+		while (openSet.getSize() > 0) {
+			let currentNode = openSet.popFirst();
+			closedSet.add(currentNode);
+			if (currentNode == targetNode) {
+				this.currentPath = [];
+				let retracingNode = targetNode;
+
+				while (retracingNode != startNode) {
+					this.currentPath.push(retracingNode);
+					retracingNode = retracingNode.parent;
+				}
+
+				this.currentPath.reverse();
+				break;
+			}
+
+			let neighbours = [];
+			for (let gridIndex = -1; gridIndex < 2; gridIndex += 2) {
+				neighbours.push(grid[currentNode.gridX + gridIndex][currentNode.gridY]);
+				neighbours.push(grid[currentNode.gridX][currentNode.gridY + gridIndex]);
+			}
+
+			for (let nIndex = 0; nIndex < neighbours.length; nIndex++) {
+				let neighbour = neighbours[nIndex];
+				if (neighbour != undefined && !neighbour.walkable || closedSet.has(neighbour)) {
+					continue;
+				}
+
+				let newMovementCost = currentNode.gCost + getDistance(currentNode, neighbour);
+				if (newMovementCost < neighbour.gCost || !openSet.contains(neighbour)) {
+					neighbour.gCost = newMovementCost;
+					neighbour.hCost = getDistance(neighbour, targetNode);
+					neighbour.parent = currentNode;
+					if (!openSet.contains(neighbour)) {
+						openSet.add(neighbour);
+					} else {
+						openSet.update(neighbour);
+					}
+				}
+			}
+		}
+
+		//Make sure that a path actually was found
+		if(this.currentPath.length > 0){
 			let nextNode = this.currentPath.shift();
-			if(head.x < nextNode.x){
+			if (head.x < nextNode.x) {
 				this.setDirection(Direction.RIGHT);
-			} else if(head.x > nextNode.x){
+			} else if (head.x > nextNode.x) {
 				this.setDirection(Direction.LEFT);
-			} else if(head.y < nextNode.y){
+			} else if (head.y < nextNode.y) {
 				this.setDirection(Direction.DOWN);
-			} else if(head.y > nextNode.y){
+			} else if (head.y > nextNode.y) {
 				this.setDirection(Direction.UP);
 			}
-		} else {
-			this.nextPathUpdate = this.NOW;
 		}
 
 		super.update();
-	}
-
-	onCollide(otherEntity){
-		super.onCollide(otherEntity);
-
-		if(otherEntity instanceof FoodEntity){
-			this.nextPathUpdate = this.NOW
-		}
 	}
 }
 
@@ -1218,9 +1219,7 @@ class PlayerSnake extends Snake {
 
 	onCollide(otherEntity){
 		let game = SnakeGame.getGame();
-		if(otherEntity instanceof Snake && game.hasUpgrade("phase")) {
-			return;
-		} else if(otherEntity instanceof BombEntity){
+		if(otherEntity instanceof BombEntity){
 			if(this.canDefuseBombs){
 				otherEntity.kill();
 			}
@@ -1252,7 +1251,6 @@ class PlayerSnake extends Snake {
 			}
 
 		}
-
 	}
 
 	kill(){
@@ -1355,7 +1353,7 @@ class CoinEntity extends RandomLocImageEntity {
 class BombEntity extends RandomLocImageEntity {
 
 	constructor(){
-		super(4, 4, SnakeGame.getGame().bombImg)
+		super(4, 4, SnakeGame.getGame().bombImg);
 	}
 }
 
