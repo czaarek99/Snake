@@ -27,7 +27,6 @@ document.addEventListener("DOMContentLoaded", () => {
 /**
  *
  * Enum classes
- * TODO: Make a base enum class (similar to java?)
  * */
 
 const directions = [];
@@ -42,14 +41,6 @@ class Direction {
 
 	isOpposite(direction){
 		return this.oppositeDirection == direction.direction;
-	}
-
-	toString(){
-		return this.direction;
-	}
-
-	static getRandomDirection(){
-		return directions[getRandomInt(0, directions.length - 1)];
 	}
 
 	static addDirection(direction){
@@ -78,10 +69,6 @@ class GameState {
 
 	constructor(state){
 		this.state = state;
-	}
-
-	toString(){
-		return this.state;
 	}
 
 	static getAllStates(){
@@ -127,8 +114,7 @@ class SnakeGame {
 		}
 
 		this.ticks = 0;
-		this.score = 0;
-		this.coins = 0;
+		this.apples = 0;
 
 		this.upgrades = new Map();
 		this.purchases = new Map();
@@ -138,7 +124,6 @@ class SnakeGame {
 
 		this.snareImg = loadImage("snare.ico");
 		this.appleImg = loadImage("apple.png");
-		this.coinImg = loadImage("coin.png");
 		this.bombImg = loadImage("bomb.png");
 		this.snakeHeadImg = loadImage("parts/head.png");
 		this.snakeCurveImg = loadImage("parts/curve.png");
@@ -152,21 +137,25 @@ class SnakeGame {
 		};
 
 		//Upgrades
-		addWithID(this.upgrades, new Upgrade("ai", "Computer Snake", "Spawn a snake to help you out with collecting apples", this.snakeHeadImg, 200, () => {
-			this.addEntity(new ComputerSnake(5));
-		} , null));
+		//TODO: Fix up these images
 		addWithID(this.upgrades, new Upgrade("bombsquad", "Bomb Squad", "Defuse any bomb you run into", this.bombImg, 125, () => {
 			this.currentSnake.canDefuseBombs = true;
 		}, null));
-		addWithID(this.upgrades, new Upgrade("coinshrink", "Shrinking Coins", "Every time you eat a coin your snake shrinks!", loadImage("coincut.png"), 100, null, null));
+		addWithID(this.upgrades, new Upgrade("appleshrink", "Shrinking Apples", "Every time you eat an apple your snake shrinks!", loadImage("coincut.png"), 100, null, null));
 		addWithID(this.upgrades, new Upgrade("phase", "Phasing Snake", "Allows you to phase through yourself without dying.", this.snakeHeadImg, 100, null, null));
-		addWithID(this.upgrades, new Upgrade("doublecoin", "Double Coins", "All coins are worth 2x", loadImage("doublecoin.png"), 30, null, null));
+		addWithID(this.upgrades, new Upgrade("doubleapples", "Double Apples", "All apples are worth 2x", loadImage("doublecoin.png"), 30, null, null));
+		addWithID(this.upgrades, new Upgrade("stopsnake", "Stopping Snake", "Stop your snake by pressing the spacebar!", this.snakeHeadImg, 80, null, null));
 		addWithID(this.upgrades, new Upgrade("slowgrow", "Slow Growth", "The snake grows slower when you eat an apple", loadImage("halfapple.png"), 25, () => {
 			this.currentSnake.snakeGrowthOnFeed /= 2;
 		}, null));
-		addWithID(this.upgrades, new Upgrade("doublescore", "Double Score", "Every apple increases your score by two instead of one", loadImage("score.png"), 15, null, null));
 
 		//Purchases
+		addWithID(this.purchases, new Purchase("ai", "Computer Snake", "Spawn a snake to help you out with collecting apples", this.snakeHeadImg, 200, (purchase) => {
+			//TODO: Fix this to only allow one AI snake
+			purchase.disabled = true;
+			this.addEntity(new ComputerSnake(5));
+
+		} , null));
 		addWithID(this.purchases, new Purchase("defuse", "Defuse all bombs", "Defuses all the bombs on the field", this.bombImg, 20, () => {
 			this.bombs.forEach((bomb) => {
 				bomb.kill();
@@ -190,22 +179,15 @@ class SnakeGame {
 			this.stopGame();
 		}, null));
 
-		//TODO: Different icons? More achievements
+
 		//Achievements
-		for(let i = 1; i < 10; i++){
-			let required = Math.pow(2, i);
-
-			addWithID(this.achievements, new Achievement(`coins${i}`, `Coin Collector ${i}`, `Collect ${required} coins`, this.coinImg, () => {
-				return this.coins >= required;
-			}));
-		}
-
+		//TODO: Different icons? More achievements
 		for(let i = 4; i < 14; i++){
 			let id = i - 3;
 			let required = Math.pow(2, i);
 
 			addWithID(this.achievements, new Achievement(`apples${id}`, `Apple Collector ${id}`, `Collect ${required} apples`, this.appleImg, () => {
-				return this.currentSnake.applesEaten >= required;
+				return this.apples >= required;
 			}));
 		}
 
@@ -216,16 +198,16 @@ class SnakeGame {
 		this.generateHTML();
 
 		let snCanvas = this.snakeCanvas = new SnakeCanvas();
-		this.background = new BackgroundEntity(1, "#1684AE");
-		this.deathZoneBackground = new BackgroundEntity(0, "#C76B28");
+		this.background = new BackgroundEntity(1, 1, 1, 1, "#1684AE");
+		this.borderBackground = new BackgroundEntity(0, 0, 0, 0, "#C76B28");
 
 		let centeredTextUpdate = function(){
 			this.x = snCanvas.getScaledWidth() / 2;
 			this.y = snCanvas.getScaledHeight() / 2;
 		};
 
-		this.scoreText = new TextEntity(0, 0, "#589943", "0", "Arial 20px", "center");
-		this.scoreText.update = centeredTextUpdate;
+		this.appleText = new TextEntity(0, 0, "#589943", "0", "Arial 20px", "center");
+		this.appleText.update = centeredTextUpdate;
 		this.pausedText = new TextEntity(0, 0, "black", "Paused!", "Arial 5px", "center");
 		this.pausedText.update = centeredTextUpdate;
 
@@ -235,9 +217,9 @@ class SnakeGame {
 		this.entities = new Set();
 		this.currentFood = null;
 		this.bombs = new Set();
-		this.addEntity(this.deathZoneBackground);
+		this.addEntity(this.borderBackground);
 		this.addEntity(this.background);
-		this.addEntity(this.scoreText);
+		this.addEntity(this.appleText);
 		this.addEntity(this.pausedText);
 
 		this.keycodeDirectionMap = {};
@@ -303,13 +285,9 @@ class SnakeGame {
 	}
 
 	updateHTML(){
-		$("#scoreText").innerHTML = "Score: " + this.score;
-		$("#coinsText").innerHTML = "Coins: " + this.coins;
 		$("#bombsText").innerHTML = "Bombs: " + this.bombs.size;
 		$("#timeText").innerHTML = "Time elapsed: " + this.convertTicksToString();
-		$("#appleText").innerHTML = "Apples Eaten: " + this.currentSnake.applesEaten;
-
-		$("#bombsTimeText").innerHTML = "Next bomb in: " + this.convertTicksToString(this.nextBombTicks - this.ticks);
+		$("#appleText").innerHTML = "Apples: " + this.apples;
 	}
 
 	convertTicksToString(ticks = this.ticks){
@@ -323,23 +301,23 @@ class SnakeGame {
 			if(minutes == 0){
 				minutesText = "";
 			} else if(minutes == 1){
-				minutesText = "1 minute ";
+				minutesText = "1 min ";
 			} else {
-				minutesText = minutes + " minutes "
+				minutesText = minutes + " min "
 			}
 
 			let secondsText;
 			if(seconds == 0){
 				secondsText = "";
 			} else if(seconds == 1){
-				secondsText = "1 second";
+				secondsText = "1s";
 			} else {
-				secondsText = seconds + " seconds";
+				secondsText = seconds + "s";
 			}
 
 			return minutesText + secondsText;
 		} else {
-			return "0 seconds";
+			return "0s";
 		}
 	}
 
@@ -361,12 +339,19 @@ class SnakeGame {
 		if(this.gameState == GameState.RUNNING){
 			//Prevent buttonmashing
 			if (this.prevKeyodeTicks != this.ticks) {
-				let keycodeMap = this.keycodeDirectionMap;
+				//Check for spacebar
+				if(keyCode == 32){
+					if(this.hasUpgrade("stopsnake")){
+						this.currentSnake.stopped = !this.currentSnake.stopped;
+					}
+				} else {
+					let keycodeMap = this.keycodeDirectionMap;
 
-				if (keycodeMap[keyCode] !== undefined) {
-					let newDirection = keycodeMap[keyCode];
+					if (keycodeMap[keyCode] !== undefined) {
+						let newDirection = keycodeMap[keyCode];
 
-					this.currentSnake.setDirection(newDirection);
+						this.currentSnake.setDirection(newDirection);
+					}
 				}
 			}
 
@@ -399,12 +384,10 @@ class SnakeGame {
 
 		this.currentSnake = new PlayerSnake(2);
 		this.addEntity(this.currentSnake);
-		this.addEntity(new CoinEntity());
 		this.spawnNewFood();
 
-		this.score = 0;
 		this.ticks = 0;
-		this.coins = 250;
+		this.apples = 800;
 		this.nextBombTicks = this.getRandFutureTicks(5, 10);
 
 		this.update();
@@ -421,8 +404,8 @@ class SnakeGame {
 
 		this.bombs.clear();
 
-        if(this.score > this.savedValues.highscore){
-			this.savedValues.highscore = this.score;
+        if(this.apples > this.savedValues.highscore){
+			this.savedValues.highscore = this.apples;
 		}
 
 		let longestLifeTicks = this.savedValues.longestLifeTicks;
@@ -441,7 +424,7 @@ class SnakeGame {
 	updateNewGameOverlay(show){
 		let overlayElement = $("#newGameOverlay");
 		if(show){
-			$("#highscoreText").innerText = "Highscore: " + this.savedValues.highscore;
+			$("#highscoreText").innerText = "Highscore: " + this.savedValues.highscore + " apples";
 			$("#lifeText").innerText = "Longest life: " + this.convertTicksToString(this.savedValues.longestLifeTicks);
 			overlayElement.style.display = "flex";
 		} else {
@@ -556,6 +539,10 @@ class SnakeGame {
 					bombs.add(bomb);
 					this.nextBombTicks = this.getRandFutureTicks(10, 30);
 
+					setTimeout(() => {
+						bomb.ignite();
+					}, 3000);
+
 					const MAX_BOMBS = 10;
 					if(bombs.size > MAX_BOMBS){
 						//Delete the oldest bomb, make sure the amount of bombs doesn't exceed MAX_BOMBS
@@ -568,7 +555,7 @@ class SnakeGame {
 				}
 			}
 
-			this.scoreText.text = this.score;
+			this.appleText.text = this.apples;
 		}
 	}
 
@@ -636,6 +623,7 @@ class SnakeCanvas {
 		}
 	}
 
+	//TODO: Buffer of scaled images, will use more memory but less cpu
 	drawScaledImage(img, x, y, width, height){
 		let canvasCtx = this.canvasCtx;
 		let sourceWidth = img.width;
@@ -731,6 +719,7 @@ class Entity extends Updateable {
 		this.statesToUpdateAt = new Set([GameState.RUNNING]);
 	}
 
+	//TODO: There has to be a better way for these methods
 	collidesWith(otherEntity) {
 		let entitiesToCheck = this.getEntitiesToCheck(otherEntity);
 
@@ -848,7 +837,7 @@ class Snake extends MultiPartEntity {
 		this.SNAKE_START_LENGT = 5;
 		this.snakeGrowthOnFeed = 4;
 		this.growthLeft = 0;
-		this.applesEaten = 0;
+		this.stopped = false;
 		this.canDefuseBombs = false;
 		this.snakeDirection = Direction.RIGHT;
 
@@ -935,7 +924,9 @@ class Snake extends MultiPartEntity {
 	}
 
 	update() {
-		this.move(this.snakeDirection, 1);
+		if(!this.stopped){
+			this.move(this.snakeDirection, 1);
+		}
 
 		let head = this.getHead();
 		let game = SnakeGame.getGame();
@@ -1026,24 +1017,34 @@ class Snake extends MultiPartEntity {
 	onCollide(otherEntity) {
 		let game = SnakeGame.getGame();
 
-		if(otherEntity instanceof BombEntity && !this.canDefuseBombs){
-			this.kill();
-		} else if(otherEntity instanceof FoodEntity){
-			this.grow(this.snakeGrowthOnFeed);
-			this.applesEaten++;
-			game.spawnNewFood();
-		} else if(otherEntity instanceof CoinEntity){
-			otherEntity.kill();
-		} else if(otherEntity instanceof Snake && !game.hasUpgrade("phase")){
-			//TODO: Why is this here?
-			if(this.headCollidesWith(otherEntity)){
+		if(otherEntity instanceof BombEntity){
+			if(this.canDefuseBombs){
+				otherEntity.kill()
+			} else {
 				this.kill();
 			}
+
+		} else if(otherEntity instanceof FoodEntity){
+			this.grow(this.snakeGrowthOnFeed);
+
+			if(game.hasUpgrade("doubleapples")){
+				game.apples += 2;
+			} else {
+				game.apples++;
+			}
+
+
+			game.spawnNewFood();
+			if(game.hasUpgrade("appleshrink")){
+				this.popButt();
+			}
+
+		} else if(otherEntity instanceof Snake && !game.hasUpgrade("phase")){
+			this.kill();
 		}
 	}
-
-	setDirection(direction){
-		if(!this.snakeDirection.isOpposite(direction)){
+	setDirection(direction) {
+		if (!this.snakeDirection.isOpposite(direction)){
 			this.snakeDirection = direction;
 		}
 	}
@@ -1057,7 +1058,6 @@ class Snake extends MultiPartEntity {
 	}
 }
 
-//TODO: Create an AI
 class ComputerSnake extends Snake {
 
 	constructor(startY){
@@ -1108,11 +1108,6 @@ class ComputerSnake extends Snake {
 				} else if (!(entity instanceof BackgroundEntity) && !(entity instanceof FoodEntity)) {
 					let walkable = false;
 
-					//TODO: Somehow make this a variable that makes sense
-					if(entity instanceof CoinEntity){
-						walkable = true;
-					}
-
 					insertIntoGrid(entity, walkable);
 				}
 			}
@@ -1135,11 +1130,10 @@ class ComputerSnake extends Snake {
 		let targetNode = new Node(true, currentFood.x, currentFood.y, foodRelativeCoords.x, foodRelativeCoords.y);
 		grid[foodRelativeCoords.x][foodRelativeCoords.y] = targetNode;
 
-		//Fill up the rest of the grid with empty walkable nodes
 		for (let x = 0; x < gridWidth; x++) {
 			for (let y = 0; y < gridHeight; y++) {
-				let currentGridItem = grid[x][y];
-				if (currentGridItem === undefined) {
+				let node = grid[x][y];
+				if (node === undefined) {
 					grid[x][y] = new Node(true, x + background.x, y + background.y, x, y);
 				}
 			}
@@ -1173,13 +1167,22 @@ class ComputerSnake extends Snake {
 
 			let neighbours = [];
 			for (let gridIndex = -1; gridIndex < 2; gridIndex += 2) {
-				neighbours.push(grid[currentNode.gridX + gridIndex][currentNode.gridY]);
-				neighbours.push(grid[currentNode.gridX][currentNode.gridY + gridIndex]);
+				//TODO: Fix strange TypeError here
+				let neighbourNode1 = grid[currentNode.gridX + gridIndex][currentNode.gridY];
+				let neighbourNode2 = grid[currentNode.gridX][currentNode.gridY + gridIndex];
+
+				if(neighbourNode1 != undefined){
+					neighbours.push(neighbourNode1);
+				}
+
+				if(neighbourNode2 != undefined){
+					neighbours.push(neighbourNode2);
+				}
 			}
 
 			for (let nIndex = 0; nIndex < neighbours.length; nIndex++) {
 				let neighbour = neighbours[nIndex];
-				if (neighbour != undefined && !neighbour.walkable || closedSet.has(neighbour)) {
+				if (!neighbour.walkable || closedSet.has(neighbour)) {
 					continue;
 				}
 
@@ -1213,44 +1216,26 @@ class ComputerSnake extends Snake {
 
 		super.update();
 	}
+
+	kill(){
+		super.kill();
+		SnakeGame.getGame().purchases.get("ai").disabled = false;
+	}
 }
 
 class PlayerSnake extends Snake {
 
+	constructor(startY){
+		super(startY);
+	}
+
 	onCollide(otherEntity){
 		let game = SnakeGame.getGame();
 		if(otherEntity instanceof BombEntity){
-			if(this.canDefuseBombs){
-				otherEntity.kill();
-			}
-
 			game.unlockAchievement("boom");
 		}
 
 		super.onCollide(otherEntity);
-		if (otherEntity instanceof FoodEntity) {
-			if(game.hasUpgrade("doublescore")){
-				game.score += 2;
-			} else {
-				game.score++;
-			}
-
-			if (getRandomInt(0, 1) > 0) {
-				game.addEntity(new CoinEntity());
-			}
-
-		} else if (otherEntity instanceof CoinEntity) {
-			if(game.hasUpgrade("coinshrink")){
-				this.popButt();
-			}
-
-			if (game.hasUpgrade("doublecoin")) {
-				game.coins += 2;
-			} else {
-				game.coins++;
-			}
-
-		}
 	}
 
 	kill(){
@@ -1334,26 +1319,30 @@ class FoodEntity extends RandomLocImageEntity {
 
 }
 
-class CoinEntity extends RandomLocImageEntity {
-
-	constructor() {
-		super(3, 3, SnakeGame.getGame().coinImg);
-        this.deathTicks = SnakeGame.getGame().getRandFutureTicks(2, 6);
-	}
-
-	update() {
-		let game = SnakeGame.getGame();
-		if(game.ticks >= this.deathTicks){
-			this.kill();
-		}
-	}
-
-}
-
 class BombEntity extends RandomLocImageEntity {
 
 	constructor(){
 		super(4, 4, SnakeGame.getGame().bombImg);
+		this.collidable = false;
+		this.ignited = false;
+	}
+
+	ignite(){
+		this.collidable = true;
+		this.ignited = true;
+	}
+	
+	paint(canvas){
+		if(this.ignited){
+			super.paint(canvas);
+		} else {
+			let context = canvas.canvasCtx;
+
+			context.save();
+			context.globalAlpha = 0.5;
+			super.paint(canvas);
+			context.restore();
+		}
 	}
 }
 
@@ -1364,6 +1353,7 @@ class TextEntity extends ColoredEntity {
 		this.text = text;
 		this.font = font;
 		this.alignment = alignment;
+		this.collidable = false;
 	}
 
 	paint(canvas) {
@@ -1383,12 +1373,19 @@ class TextEntity extends ColoredEntity {
 
 class BackgroundEntity extends ColoredEntity {
 
-	constructor(borderWidth, color) {
-		super(borderWidth, borderWidth, null, null, color);
+	constructor(leftTopBoundX, leftTopBoundY, bottomRightBoundX, bottomRightBoundY, color) {
+		super(leftTopBoundX, leftTopBoundY, 0, 0, color);
 		this.statesToPaintAt = GameState.getAllStates();
 		this.statesToUpdateAt = GameState.getAllStates();
 		this.collidable = false;
-		this.borderWidth = borderWidth;
+
+		/*
+		These bounds are relative to how far away the background should be from the maxX
+		and maxY
+		 */
+		this.bottomRightBoundX = bottomRightBoundX;
+		this.bottomRightBoundY = bottomRightBoundY;
+
 		this.update();
 	}
 
@@ -1400,9 +1397,8 @@ class BackgroundEntity extends ColoredEntity {
 
 	update() {
 		let game = SnakeGame.getGame();
-		let doubleBorder = this.borderWidth * 2;
-		this.width = game.snakeCanvas.getScaledWidth() - doubleBorder;
-		this.height = game.snakeCanvas.getScaledHeight() - doubleBorder;
+		this.width = game.snakeCanvas.getScaledWidth() - this.x - this.bottomRightBoundX;
+		this.height = game.snakeCanvas.getScaledHeight() - this.y - this.bottomRightBoundY;
 	}
 
 	kill() {
@@ -1426,9 +1422,8 @@ class Purchase extends Updateable {
 	buy() {
 		if (!this.disabled) {
 			let game = SnakeGame.getGame();
-			if (game.coins >= this.price) {
-				game.coins -= this.price;
-				this.purchased = true;
+			if (game.apples >= this.price) {
+				game.apples -= this.price;
 
 				if (this.onPurchase != null) {
 					this.onPurchase(this);
@@ -1440,7 +1435,7 @@ class Purchase extends Updateable {
 	update() {
 		let game = SnakeGame.getGame();
 
-		this.disabled = game.coins < this.price;
+		this.disabled = game.apples < this.price;
 
 		if (this.onUpdate != null) {
 			this.onUpdate(this);
@@ -1643,7 +1638,11 @@ class Node {
         return this.gCost + this.hCost;
     }
 
-	//TODO: Use enums instead of -1, 0 and 1?
+	/*
+	-1 = Lower priority
+	 0 = Equal priority
+	 1 = Higher Priority
+	 */
     compareTo(nodeToCompare){
 		let fCost = this.fCost;
 
