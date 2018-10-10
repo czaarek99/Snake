@@ -387,7 +387,7 @@ class SnakeGame {
 		this.spawnNewFood();
 
 		this.ticks = 0;
-		this.apples = 800;
+		this.apples = 0;
 		this.nextBombTicks = this.getRandFutureTicks(5, 10);
 
 		this.update();
